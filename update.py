@@ -1,69 +1,10 @@
 import requests
-import sys
-import copy
+import os
 import json
 import base64
-import os
-from urllib.parse import quote
 from datetime import datetime, timedelta
 
 
-g_github_token = ""  # GitHub Token
-g_gist_id = ""  # gist id
-
-
-def create_gist(filecontent_dict):
-    '''
-    创建gist，没用
-    '''
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "Authorization": f"Bearer {g_github_token}",
-        "X-GitHub-Api-Version": "2022-11-28"
-    }
-    url = "https://api.github.com/gists"
-    data = {
-        "description": "subconverter-action",
-        "public": False,
-        "files": {
-        }
-    }
-    for gist_filename, gist_content in filecontent_dict.items():
-        data["files"][gist_filename] = {"content": gist_content}
-    response = requests.post(url, headers=headers, json=data)
-    print(response.status_code)
-    print(response.json())
-
-
-def update_gist(gist_id, filecontent_dict):
-    '''
-    更新gist
-    '''
-    global g_github_token
-    global headers
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "Authorization": f"Bearer {g_github_token}",
-        "X-GitHub-Api-Version": "2022-11-28"
-    }
-    url = f"https://api.github.com/gists/{gist_id}"
-    data = {
-        "description": "subconverter-actions",
-        "files": {
-        }
-    }
-    for gist_filename, gist_content in filecontent_dict.items():
-        if gist_content is None:
-            # 删除文件
-            data["files"][gist_filename] = None
-        else:
-            data["files"][gist_filename] = {"content": gist_content}
-    response = requests.patch(url, headers=headers, data=json.dumps(data))
-    print(f"update_gist response:{response.status_code}")
-    # print(response.json())
-
-
-# 添加函数以获取 subscription-userinfo
 def fetch_subscription_userinfo(subscribe_url):
     """
     Fetch subscription-userinfo header from the subscription URL.
@@ -84,25 +25,63 @@ def fetch_subscription_userinfo(subscribe_url):
         return ""
 
 
+def parse_subscription_userinfo(userinfo):
+    """
+    Parse the subscription-userinfo string into individual components.
+    Example: "upload=123456789; download=987654321; total=10737418240; expire=1689897600"
+    """
+    try:
+        userinfo_data = {}
+        for item in userinfo.split(";"):
+            if "=" in item:
+                key, value = item.split("=")
+                userinfo_data[key.strip()] = value.strip()
+
+        # 将字节值转换为 GB，并解析到期时间
+        upload = int(userinfo_data.get("upload", 0)) / (1024 ** 3)  # 转为 GB
+        download = int(userinfo_data.get("download", 0)) / (1024 ** 3)
+        total = int(userinfo_data.get("total", 0)) / (1024 ** 3)
+        expire_timestamp = int(userinfo_data.get("expire", 0))
+        expire_date = (
+            datetime.utcfromtimestamp(expire_timestamp).strftime("%Y-%m-%d %H:%M:%S")
+            if expire_timestamp > 0
+            else "unknown"
+        )
+
+        return round(upload, 2), round(download, 2), round(total, 2), expire_date
+    except Exception as e:
+        print(f"Error parsing subscription-userinfo: {e}")
+        return 0, 0, 0, "unknown"
+
+
 def convert_subscribe(subscribe_dict):
-    base_url = "http://localhost:25500/sub"
+    """
+    Convert subscription links and add subscription-userinfo to the YAML file.
+    """
     filecontent_dict = {}
-    for filename, params in subscribe_dict.items():
-        url = f"{base_url}{params}"
-        response = requests.get(url)
-        raw_content = response.text
+    for filename, subscribe_url in subscribe_dict.items():
+        # 获取订阅内容
+        try:
+            response = requests.get(subscribe_url)
+            raw_content = response.text
+        except Exception as e:
+            print(f"Error fetching subscription content from {subscribe_url}: {e}")
+            continue
 
         # 获取 subscription-userinfo 信息
-        userinfo = fetch_subscription_userinfo(url)
+        userinfo = fetch_subscription_userinfo(subscribe_url)
         if userinfo:
-            # 在文件顶部添加 subscription-userinfo Header
-            header = f"# subscription-userinfo: {userinfo}\n"
+            # 解析 subscription-userinfo
+            upload, download, total, expire_date = parse_subscription_userinfo(userinfo)
+            header = (
+                f"# subscription-userinfo: Upload={upload}GB; Download={download}GB; Total={total}GB; Expire={expire_date}\n"
+            )
         else:
-            header = ""
+            header = "# subscription-userinfo: unavailable\n"
 
         # 构造最终的 YAML 内容
         filecontent_dict[filename] = (
-            f"#!MANAGED-CONFIG {url} interval=43200\n"
+            f"#!MANAGED-CONFIG {subscribe_url} interval=43200\n"
             f"{header}\n"
             f"{raw_content}\n\n"
             f"# Updated on {(datetime.now() + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -110,34 +89,45 @@ def convert_subscribe(subscribe_dict):
         print(f"Generated content for {filename}:\n{filecontent_dict[filename]}")
     return filecontent_dict
 
-def test_param():
-    '''
-    生成参数
-    '''
-    template_params = "?target=clash&insert=false&exclude=%E5%A5%97%E9%A4%90%E5%88%B0%E6%9C%9F%7C%E8%8A%82%E7%82%B9%E8%B6%85%E6%97%B6%7C%E6%9B%B4%E6%8D%A2%7C%E5%89%A9%E4%BD%99%E6%B5%81%E9%87%8F%7C%E5%88%B0%E6%9C%9F%E6%97%B6%E9%97%B4%7CTG%E7%BE%A4%7C%E5%AE%98%E7%BD%91&interval=259200&emoji=true&list=true&xudp=false&udp=true&tfo=false&expand=true&scv=true&fdn=false&new_name=true&url="
-    subscribe_url = {
-        # "template.yml":"https://ooxx/subscribe?token=xxxxx",
+
+def update_gist(gist_id, filecontent_dict):
+    """
+    Update the Gist with the generated content.
+    """
+    github_token = os.getenv("PERSONAL_TOKEN")
+    headers = {
+        "Authorization": f"Bearer {github_token}",
+        "Accept": "application/vnd.github+json",
     }
-    subscribe_dict = {}
-    for filename, url in subscribe_url.items():
-        subscribe_dict[filename] = template_params + quote(url)
-    convert_param = base64.b64encode(json.dumps(subscribe_dict).encode("utf-8")).decode("utf-8")
-    print(f"CONVERT_PARAM={convert_param}")
-    pass
+    url = f"https://api.github.com/gists/{gist_id}"
+    data = {
+        "files": {filename: {"content": content} for filename, content in filecontent_dict.items()}
+    }
+
+    response = requests.patch(url, headers=headers, json=data)
+    if response.status_code == 200:
+        print("Gist updated successfully.")
+    else:
+        print(f"Failed to update Gist. Status code: {response.status_code}, response: {response.text}")
+
 
 if __name__ == "__main__":
-    # test_param()
     try:
-        subscribe_dict = json.loads(base64.b64decode(os.environ['CONVERT_PARAM']).decode("utf-8"))
+        # 从环境变量中获取订阅参数
+        subscribe_dict = json.loads(base64.b64decode(os.environ["CONVERT_PARAM"]).decode("utf-8"))
     except Exception as e:
-        print(f"{e}")
-        sys.exit(1)
-    g_github_token = os.environ['PERSONAL_TOKEN']
-    g_gist_id = os.environ['GIST_ID']
+        print(f"Error decoding CONVERT_PARAM: {e}")
+        exit(1)
+
+    # 环境变量中获取 GitHub Token 和 Gist ID
+    g_github_token = os.getenv("PERSONAL_TOKEN")
+    g_gist_id = os.getenv("GIST_ID")
+
+    # 转换订阅并生成内容
     filecontent_dict = convert_subscribe(subscribe_dict)
-    if g_github_token != "" and g_gist_id != "":
-        update_gist(gist_id=g_gist_id,filecontent_dict=filecontent_dict)
-        pass
+
+    # 上传到 Gist
+    if g_github_token and g_gist_id:
+        update_gist(g_gist_id, filecontent_dict)
     else:
-        print("不上传gist")
-    pass
+        print("Missing GitHub token or Gist ID.")
