@@ -63,6 +63,26 @@ def update_gist(gist_id, filecontent_dict):
     # print(response.json())
 
 
+# 添加函数以获取 subscription-userinfo
+def fetch_subscription_userinfo(subscribe_url):
+    """
+    Fetch subscription-userinfo header from the subscription URL.
+    """
+    try:
+        # 使用 HEAD 请求获取 Headers，包括 subscription-userinfo
+        response = requests.head(subscribe_url)
+        if response.status_code == 200:
+            # 提取 subscription-userinfo Header
+            userinfo = response.headers.get("subscription-userinfo", "")
+            userinfo = userinfo.strip(";")  # 去除多余的分号
+            return userinfo
+        else:
+            print(f"Failed to fetch subscription-userinfo, status code: {response.status_code}")
+            return ""
+    except Exception as e:
+        print(f"Error fetching subscription-userinfo: {e}")
+        return ""
+
 
 def convert_subscribe(subscribe_dict):
     base_url = "http://localhost:25500/sub"
@@ -70,7 +90,24 @@ def convert_subscribe(subscribe_dict):
     for filename, params in subscribe_dict.items():
         url = f"{base_url}{params}"
         response = requests.get(url)
-        filecontent_dict[filename] = response.text+f"\n\n# Updated on {(datetime.now()+timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}\n" # 展示UTC/GMT +8.00的时间
+        raw_content = response.text
+
+        # 获取 subscription-userinfo 信息
+        userinfo = fetch_subscription_userinfo(url)
+        if userinfo:
+            # 在文件顶部添加 subscription-userinfo Header
+            header = f"# subscription-userinfo: {userinfo}\n"
+        else:
+            header = ""
+
+        # 构造最终的 YAML 内容
+        filecontent_dict[filename] = (
+            f"#!MANAGED-CONFIG {url} interval=43200\n"
+            f"{header}\n"
+            f"{raw_content}\n\n"
+            f"# Updated on {(datetime.now() + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        )
+        print(f"Generated content for {filename}:\n{filecontent_dict[filename]}")
     return filecontent_dict
 
 def test_param():
