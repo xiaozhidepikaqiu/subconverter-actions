@@ -4,6 +4,7 @@ import json
 import base64
 from datetime import datetime
 import time
+from urllib.parse import unquote
 
 
 def fetch_subscription_userinfo(subscribe_url):
@@ -47,6 +48,9 @@ def convert_subscribe(subscribe_dict):
         # 修复 URL 格式
         if not subscribe_url.startswith("http://") and not subscribe_url.startswith("https://"):
             subscribe_url = "https://" + subscribe_url
+
+        # 解码嵌套的 URL 参数
+        subscribe_url = unquote(subscribe_url)
 
         try:
             print(f"Processing {filename} with URL: {subscribe_url}")
