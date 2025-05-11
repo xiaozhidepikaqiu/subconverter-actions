@@ -4,24 +4,38 @@ import json
 import base64
 from datetime import datetime
 import time
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
+
+
+def validate_and_fix_url(subscribe_url):
+    """
+    验证并修正订阅 URL 的格式
+    """
+    if not subscribe_url.startswith("http://") and not subscribe_url.startswith("https://"):
+        subscribe_url = "https://" + subscribe_url
+
+    # 解码嵌套的 URL 参数
+    subscribe_url = unquote(subscribe_url)
+
+    # 检查 URL 是否包含有效的主机名
+    parsed_url = urlparse(subscribe_url)
+    if not parsed_url.netloc:
+        raise ValueError(f"Invalid URL: {subscribe_url}")
+
+    return subscribe_url
 
 
 def fetch_subscription_userinfo(subscribe_url):
     """
     Fetch subscription-userinfo header from the subscription URL.
     """
-    # 确保 URL 包含协议头
-    if not subscribe_url.startswith("http://") and not subscribe_url.startswith("https://"):
-        subscribe_url = "https://" + subscribe_url
-
-    headers = {
-        'User-Agent': 'Clash/1.0.0',
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache'
-    }
-
     try:
+        subscribe_url = validate_and_fix_url(subscribe_url)
+        headers = {
+            'User-Agent': 'Clash/1.0.0',
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+        }
         response = requests.get(subscribe_url, headers=headers, allow_redirects=True)
         print(f"Response headers: {dict(response.headers)}")
         
@@ -45,15 +59,12 @@ def convert_subscribe(subscribe_dict):
     """
     filecontent_dict = {}
     for filename, subscribe_url in subscribe_dict.items():
-        # 修复 URL 格式
-        if not subscribe_url.startswith("http://") and not subscribe_url.startswith("https://"):
-            subscribe_url = "https://" + subscribe_url
-
-        # 解码嵌套的 URL 参数
-        subscribe_url = unquote(subscribe_url)
-
         try:
             print(f"Processing {filename} with URL: {subscribe_url}")
+            
+            # 验证并修正订阅 URL
+            subscribe_url = validate_and_fix_url(subscribe_url)
+            print(f"Validated URL: {subscribe_url}")
             
             # 获取订阅信息
             userinfo = fetch_subscription_userinfo(subscribe_url)
