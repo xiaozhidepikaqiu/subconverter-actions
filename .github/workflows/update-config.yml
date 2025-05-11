@@ -1,0 +1,45 @@
+name: Update Clash Config
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # 每6小时更新一次
+  workflow_dispatch:  # 支持手动触发
+  push:
+    branches:
+      - main  # 每次push到main分支时触发
+
+env:
+  CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+  CF_NAMESPACE_ID: ${{ secrets.CF_NAMESPACE_ID }}
+  CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+  SUBSCRIPTION_URL: ${{ secrets.SUBSCRIPTION_URL }}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pyyaml
+
+      - name: Install and setup subconverter
+        run: |
+          wget https://github.com/tindy2013/subconverter/releases/latest/download/subconverter_linux64.tar.gz
+          tar -xvf subconverter_linux64.tar.gz
+          chmod +x subconverter/subconverter
+
+      - name: Convert subscription
+        run: |
+          ./subconverter/subconverter -u "${{ env.SUBSCRIPTION_URL }}" -t clash > converted_config.yaml
+
+      - name: Update Cloudflare KV
+        run: python update_cf_kv.py
