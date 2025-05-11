@@ -13,6 +13,7 @@ env:
   CF_NAMESPACE_ID: ${{ secrets.CF_NAMESPACE_ID }}
   CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
   SUBSCRIPTION_URL: ${{ secrets.SUBSCRIPTION_URL }}
+  CONVERT_PARAM: ${{ secrets.CONVERT_PARAM }}
 
 jobs:
   update:
