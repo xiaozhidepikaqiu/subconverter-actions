@@ -8,6 +8,7 @@ on:
     - cron: '0 0 */3 * *'  # 每3天的午夜（UTC时间）触发
   issues:
     types: [opened, edited, deleted, pinned, unpinned, labeled, unlabeled, closed, reopened, assigned, unassigned]  # issues事件触发
+  workflow_dispatch:  # 支持手动触发
 
 jobs:
   run-subconverter:
