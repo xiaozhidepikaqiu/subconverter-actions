@@ -40,9 +40,5 @@ jobs:
           chmod +x subconverter/subconverter
           nohup subconverter/subconverter &
 
-      - name: Convert subscription
-        run: |
-          ./subconverter/subconverter -u "${{ env.SUBSCRIPTION_URL }}" -t clash > converted_config.yaml
-
       - name: Update Cloudflare KV
         run: python update_cf_kv.py
