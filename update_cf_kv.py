@@ -18,25 +18,19 @@ class SubConverter:
         """下载并设置 subconverter"""
         try:
             print("Downloading subconverter...")
-            # 下载 subconverter
             response = requests.get(
                 "https://github.com/tindy2013/subconverter/releases/latest/download/subconverter_linux64.tar.gz",
-                stream=True
+                stream=True,
+                timeout=30
             )
             response.raise_for_status()
             
-            # 保存文件
             with open("subconverter_linux64.tar.gz", "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
 
-            # 解压文件
             subprocess.run(["tar", "-xzf", "subconverter_linux64.tar.gz"], check=True)
-            
-            # 设置执行权限
             subprocess.run(["chmod", "+x", f"{self.subconverter_dir}/{self.subconverter_exe}"], check=True)
-            
-            # 清理下载文件
             os.remove("subconverter_linux64.tar.gz")
             print("Subconverter setup completed")
             return True
@@ -52,23 +46,23 @@ class SubConverter:
                 if not self.download_subconverter():
                     raise Exception("Failed to setup subconverter")
 
-            print(f"Converting subscription: {subscription_url}")
+            print(f"Converting subscription...")
             
-            # 执行转换命令
             result = subprocess.run(
                 [
                     f"./{self.subconverter_dir}/{self.subconverter_exe}",
                     "-u", subscription_url,
-                    "-t", "clash"
+                    "-t", "clash",
+                    "--cache"
                 ],
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=60  # 60秒超时
             )
 
             if result.returncode != 0:
                 raise Exception(f"Conversion failed: {result.stderr}")
 
-            # 保存转换后的配置
             with open(self.config_file, "w", encoding="utf-8") as f:
                 f.write(result.stdout)
 
@@ -85,30 +79,35 @@ class CloudflareKV:
         self.namespace_id = namespace_id
         self.api_token = api_token
         self.base_url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/storage/kv/namespaces/{namespace_id}/values"
+        self.session = self._create_session()
+
+    def _create_session(self):
+        session = requests.Session()
+        session.headers.update({
+            "Authorization": f"Bearer {self.api_token}",
+            "Content-Type": "application/json"
+        })
+        return session
 
     def update_config(self, original_url, config_content):
         """更新 Cloudflare KV 存储"""
         try:
-            # 准备配置数据
+            print("Preparing config data...")
             config_data = {
                 "original_url": original_url,
                 "converted_config": base64.b64encode(config_content.encode()).decode(),
                 "update_time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
             }
 
-            # 设置请求头
-            headers = {
-                "Authorization": f"Bearer {self.api_token}",
-                "Content-Type": "application/json"
-            }
-
-            # 发送请求更新 KV
-            response = requests.put(
+            print("Sending request to Cloudflare KV...")
+            response = self.session.put(
                 f"{self.base_url}/current_config",
-                headers=headers,
-                json=config_data
+                json=config_data,
+                timeout=30
             )
 
+            print(f"Response status code: {response.status_code}")
+            
             if not response.ok:
                 raise Exception(f"API request failed: {response.status_code} - {response.text}")
 
@@ -118,48 +117,59 @@ class CloudflareKV:
         except Exception as e:
             print(f"Error updating KV: {str(e)}")
             return False
+        finally:
+            self.session.close()
 
 def main():
     try:
-        # 从环境变量获取配置
-        required_env_vars = {
+        print("Starting config update process...")
+        print(f"Current time (UTC): {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
+
+        # 检查环境变量
+        required_vars = {
             "CF_ACCOUNT_ID": "Cloudflare Account ID",
             "CF_NAMESPACE_ID": "KV Namespace ID",
             "CF_API_TOKEN": "API Token",
             "SUBSCRIPTION_URL": "Subscription URL"
         }
 
-        # 检查所需的环境变量
-        for var, description in required_env_vars.items():
+        for var, desc in required_vars.items():
             if var not in os.environ:
-                raise Exception(f"Missing required environment variable: {var} ({description})")
+                raise Exception(f"Missing {desc} ({var})")
+            print(f"Found {var}")
 
         # 初始化转换器
         converter = SubConverter()
         
         # 转换订阅
         if not converter.convert_subscription(os.environ["SUBSCRIPTION_URL"]):
-            raise Exception("Subscription conversion failed")
+            raise Exception("Failed to convert subscription")
 
         # 读取转换后的配置
+        print("Reading converted configuration...")
+        if not os.path.exists(converter.config_file):
+            raise Exception("Converted config file not found")
+
         with open(converter.config_file, "r", encoding="utf-8") as f:
             config_content = f.read()
 
-        # 初始化 Cloudflare KV 客户端
+        if not config_content.strip():
+            raise Exception("Converted configuration is empty")
+
+        # 更新 Cloudflare KV
         cf_kv = CloudflareKV(
             os.environ["CF_ACCOUNT_ID"],
             os.environ["CF_NAMESPACE_ID"],
             os.environ["CF_API_TOKEN"]
         )
 
-        # 更新 KV 存储
         if not cf_kv.update_config(os.environ["SUBSCRIPTION_URL"], config_content):
             raise Exception("Failed to update Cloudflare KV")
 
         print("Config update process completed successfully")
 
     except Exception as e:
-        print(f"Error in main process: {str(e)}")
+        print(f"Error: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
