@@ -2,87 +2,60 @@ import requests
 import os
 import json
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime
 import time
+
 
 def fetch_subscription_userinfo(subscribe_url):
     """
-    使用多种方式尝试获取订阅信息
+    Fetch subscription-userinfo header from the subscription URL.
     """
+    # 确保 URL 包含协议头
+    if not subscribe_url.startswith("http://") and not subscribe_url.startswith("https://"):
+        subscribe_url = "https://" + subscribe_url
+
+    headers = {
+        'User-Agent': 'Clash/1.0.0',
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+    }
+
     try:
-        # 使用不同的 User-Agent 尝试
-        headers_list = [
-            {'User-Agent': 'Clash/1.0.0'},
-            {'User-Agent': 'ClashforWindows/0.20.39'},
-            {'User-Agent': 'Stash/2.0.0'},
-            {}  # 空 headers 作为后备
-        ]
+        response = requests.get(subscribe_url, headers=headers, allow_redirects=True)
+        print(f"Response headers: {dict(response.headers)}")
         
-        for headers in headers_list:
-            response = requests.get(subscribe_url, headers=headers, allow_redirects=True)
-            print(f"Trying with headers: {headers}")
-            print(f"Response status: {response.status_code}")
-            print(f"Response headers: {dict(response.headers)}")
-            
-            # 检查所有可能的 header 名称
-            userinfo = (
-                response.headers.get('subscription-userinfo') or
-                response.headers.get('Subscription-Userinfo') or
-                response.headers.get('SUBSCRIPTION-USERINFO') or
-                response.headers.get('User-info') or
-                response.headers.get('Flow-Info') or
-                ''
-            )
-            
-            if userinfo:
-                print(f"Found userinfo in headers: {userinfo}")
-                return userinfo
-            
-            # 如果在 headers 中没找到，尝试解析响应内容
-            try:
-                content = response.text
-                if '剩余流量' in content or '总流量' in content:
-                    import re
-                    # 尝试多个正则表达式匹配
-                    patterns = [
-                        r'剩余流量：(.*?)\|总流量：(.*?)(?:\||$)',
-                        r'总流量：(.*?)\|已使用：(.*?)(?:\||$)',
-                        r'流量：(.*?) \| 剩余：(.*?)(?:\||$)'
-                    ]
-                    
-                    for pattern in patterns:
-                        matches = re.search(pattern, content)
-                        if matches:
-                            print(f"Found userinfo in content using pattern: {pattern}")
-                            # 转换为标准格式
-                            return f"upload=0;download=0;total={matches.group(2)};expire=0"
-            except Exception as e:
-                print(f"Error parsing content: {e}")
-                
-            # 如果这个 User-Agent 没有成功，继续尝试下一个
-            time.sleep(1)  # 添加短暂延迟，避免请求过快
-            
-        print("No subscription info found in all attempts")
+        userinfo = response.headers.get('subscription-userinfo', '')
+        if userinfo:
+            print(f"Found userinfo: {userinfo}")
+            return userinfo
+        else:
+            print("No subscription-userinfo found in headers.")
+        
         return ""
         
     except Exception as e:
-        print(f"Error in fetch_subscription_userinfo: {e}")
+        print(f"Error fetching userinfo: {e}")
         return ""
+
 
 def convert_subscribe(subscribe_dict):
     """
-    转换订阅并保留流量信息
+    Convert subscription links and add subscription-userinfo to the YAML file.
     """
     filecontent_dict = {}
     for filename, subscribe_url in subscribe_dict.items():
+        # 修复 URL 格式
+        if not subscribe_url.startswith("http://") and not subscribe_url.startswith("https://"):
+            subscribe_url = "https://" + subscribe_url
+
         try:
             print(f"Processing {filename} with URL: {subscribe_url}")
             
-            # 1. 首先获取原始订阅信息
+            # 获取订阅信息
             userinfo = fetch_subscription_userinfo(subscribe_url)
             print(f"Original userinfo: {userinfo}")
             
-            # 2. 使用 subconverter 进行转换
+            # 调用 subconverter
             base_url = "http://127.0.0.1:25500/sub"
             params = {
                 'target': 'clash',
@@ -93,7 +66,7 @@ def convert_subscribe(subscribe_dict):
                 'emoji': 'true',
                 'list': 'false',
                 'sort': 'false',
-                'include': userinfo,  # 包含获取到的用户信息
+                'include': userinfo,
                 'append_info': 'true',
                 'expand': 'true',
                 'classic': 'true',
@@ -109,38 +82,28 @@ def convert_subscribe(subscribe_dict):
                 converted_content = response.text
                 print("Conversion successful")
                 
-                # 确保 userinfo 被添加到配置文件的开头
+                # 添加 userinfo 到配置文件
                 if userinfo:
-                    # 构造配置文件，确保 userinfo 在最前面
-                    config_content = (
-                        f"#!MANAGED-CONFIG {subscribe_url} interval=43200\n"
-                        f"#subscription-userinfo: {userinfo}\n"
-                        f"#update-interval: 43200\n"
-                        f"#support-url: {subscribe_url}\n"
-                        f"#profile-web-page-url: {subscribe_url}\n"
-                        f"{converted_content}\n"
-                        f"#update-time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                    )
+                    header = f"# subscription-userinfo: {userinfo}\n"
                 else:
-                    config_content = converted_content
+                    header = "# No subscription info available\n"
                 
-                filecontent_dict[filename] = config_content
-                print(f"Generated content for {filename} with headers")
-                
-                # 打印生成的内容的前几行，用于调试
-                print("First few lines of generated content:")
-                print("\n".join(config_content.split("\n")[:10]))
-                
+                filecontent_dict[filename] = (
+                    f"#!MANAGED-CONFIG {subscribe_url} interval=43200\n"
+                    f"{header}\n"
+                    f"{converted_content}\n"
+                    f"# Updated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                )
             else:
                 print(f"Conversion failed with status code: {response.status_code}")
                 print(f"Response: {response.text}")
-                continue
                 
         except Exception as e:
             print(f"Error processing {filename}: {e}")
             continue
             
     return filecontent_dict
+
 
 def update_gist(gist_id, filecontent_dict):
     """
@@ -172,6 +135,7 @@ def update_gist(gist_id, filecontent_dict):
     else:
         print(f"Failed to update Gist. Status code: {response.status_code}")
         print(f"Response: {response.text}")
+
 
 if __name__ == "__main__":
     try:
