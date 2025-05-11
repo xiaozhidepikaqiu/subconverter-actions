@@ -10,6 +10,33 @@ g_github_token = ""  # GitHub Token
 g_gist_id = ""  # Gist ID
 
 
+def fetch_subscription_userinfo(subscribe_url):
+    """
+    获取订阅链接的流量信息
+    """
+    headers = {
+        "User-Agent": "Clash/1.0.0",
+        "Accept": "application/json",
+        "Cache-Control": "no-cache",
+    }
+    try:
+        response = requests.get(subscribe_url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            userinfo = response.headers.get("subscription-userinfo", "")
+            if userinfo:
+                print(f"Subscription userinfo: {userinfo}")
+                return userinfo
+            else:
+                print("No subscription-userinfo found in response headers.")
+                return "No subscription-userinfo available."
+        else:
+            print(f"Failed to fetch userinfo. Status code: {response.status_code}")
+            return "Failed to fetch subscription-userinfo."
+    except Exception as e:
+        print(f"Error fetching subscription userinfo: {e}")
+        return "Error fetching subscription-userinfo."
+
+
 def update_gist(gist_id, filecontent_dict):
     """
     更新 Gist
@@ -42,23 +69,28 @@ def update_gist(gist_id, filecontent_dict):
 
 def convert_subscribe(subscribe_dict):
     """
-    调用 subconverter 服务转换订阅链接
+    调用 subconverter 服务转换订阅链接，并获取流量信息
     """
     base_url = "http://localhost:25500/sub"
     filecontent_dict = {}
     for filename, params in subscribe_dict.items():
         try:
             # 拼接完整的 URL
-            url = f"{base_url}{params}"
-            print(f"Processing {filename} with URL: {url}")
+            subscribe_url = params.split("&url=")[-1]  # 从参数提取原始订阅链接
+            full_url = f"{base_url}{params}"
+            print(f"Processing {filename} with URL: {full_url}")
 
-            # 发起请求
-            response = requests.get(url, timeout=10)
+            # 获取流量信息
+            userinfo = fetch_subscription_userinfo(subscribe_url)
+
+            # 发起转换请求
+            response = requests.get(full_url, timeout=10)
             if response.status_code == 200:
-                # 添加更新时间戳
+                # 添加流量信息和更新时间戳到文件内容
                 filecontent_dict[filename] = (
-                    response.text +
-                    f"\n\n# Updated on {(datetime.now() + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    f"# Subscription userinfo: {userinfo}\n"
+                    f"{response.text}\n"
+                    f"# Updated on {(datetime.now() + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}\n"
                 )
                 print(f"Successfully processed {filename}.")
             else:
@@ -101,7 +133,7 @@ if __name__ == "__main__":
         print("GitHub token or Gist ID is missing. Skipping Gist update.")
         sys.exit(1)
 
-    # 转换订阅链接
+    # 转换订阅链接并获取流量信息
     filecontent_dict = convert_subscribe(subscribe_dict)
 
     if not filecontent_dict:
