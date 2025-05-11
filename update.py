@@ -15,7 +15,7 @@ def check_service():
     检测 subconverter 服务是否运行
     """
     try:
-        response = requests.get("http://localhost:25500/ping", timeout=5)
+        response = requests.get("http://localhost:25500", timeout=5)
         if response.status_code == 200:
             print("Subconverter service is running.")
         else:
