@@ -108,7 +108,7 @@ def convert_subscribe(subscribe_dict):
             userinfo = fetch_subscription_userinfo(full_url)
 
             # 发起转换请求
-            response = requests.get(full_url, timeout=10)
+            response = requests.get(full_url, timeout=30)  # 增加超时时间
             if response.status_code == 200:
                 # 添加流量信息和更新时间戳到文件内容
                 filecontent_dict[filename] = (
@@ -119,25 +119,12 @@ def convert_subscribe(subscribe_dict):
                 print(f"Successfully processed {filename}.")
             else:
                 print(f"Failed to process {filename}. Status code: {response.status_code}, Response: {response.text}")
+        except requests.exceptions.Timeout:
+            print(f"Timeout occurred while processing {filename}. Consider increasing the timeout.")
         except Exception as e:
             print(f"Error processing {filename}: {e}")
     print(f"Generated file content: {filecontent_dict}")
     return filecontent_dict
-
-
-def test_param():
-    """
-    生成示例参数
-    """
-    template_params = "?target=clash&insert=false&exclude=%E5%A5%97%E9%A4%90%E5%88%B0%E6%9C%9F%7C%E8%8A%82%E7%82%B9%E8%B6%85%E6%97%B6%7C%E6%9B%B4%E6%8D%A2%7C%E5%89%A9%E4%BD%99%E6%B5%81%E9%87%8F%7C%E5%..."
-    subscribe_url = {
-        "template.yml": "https://example.com/subscribe?token=xxxxx",
-    }
-    subscribe_dict = {}
-    for filename, url in subscribe_url.items():
-        subscribe_dict[filename] = template_params + quote(url)
-    convert_param = base64.b64encode(json.dumps(subscribe_dict).encode("utf-8")).decode("utf-8")
-    print(f"CONVERT_PARAM={convert_param}")
 
 
 if __name__ == "__main__":
