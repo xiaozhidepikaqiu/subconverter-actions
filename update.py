@@ -10,22 +10,6 @@ g_github_token = ""  # GitHub Token
 g_gist_id = ""  # Gist ID
 
 
-def check_service():
-    """
-    检测 subconverter 服务是否运行
-    """
-    try:
-        response = requests.get("http://localhost:25500/sub", timeout=5)
-        if response.status_code == 200:
-            print("Subconverter service is running.")
-        else:
-            print(f"Subconverter service returned unexpected status code: {response.status_code}")
-            sys.exit(1)
-    except Exception as e:
-        print(f"Error checking subconverter service: {e}")
-        sys.exit(1)
-
-
 def update_gist(gist_id, filecontent_dict):
     """
     更新 Gist
@@ -101,8 +85,6 @@ def test_param():
 
 
 if __name__ == "__main__":
-    # 检测 subconverter 服务是否运行
-    check_service()
 
     try:
         # 解码订阅参数
