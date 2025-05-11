@@ -83,8 +83,7 @@ def test_param():
 
 
 if __name__ == "__main__":
-    # 检测服务是否运行
-    check_service()
+
 
     try:
         # 解码订阅参数
