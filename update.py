@@ -3,13 +3,27 @@ import sys
 import json
 import base64
 import os
-from urllib.parse import urljoin, urlencode
+from urllib.parse import quote
 from datetime import datetime, timedelta
 
 g_github_token = ""  # GitHub Token
 g_gist_id = ""  # Gist ID
 
 
+def check_service():
+    """
+    检测 subconverter 服务是否运行
+    """
+    try:
+        response = requests.get("http://localhost:25500/sub", timeout=5)
+        if response.status_code == 200:
+            print("Subconverter service is running.")
+        else:
+            print(f"Subconverter service returned unexpected status code: {response.status_code}")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Error checking subconverter service: {e}")
+        sys.exit(1)
 
 
 def update_gist(gist_id, filecontent_dict):
@@ -33,10 +47,13 @@ def update_gist(gist_id, filecontent_dict):
             data["files"][gist_filename] = None
         else:
             data["files"][gist_filename] = {"content": gist_content}
+
     response = requests.patch(url, headers=headers, json=data)
     print(f"update_gist response: {response.status_code}")
     if response.status_code != 200:
         print(f"Error updating Gist: {response.text}")
+    else:
+        print("Gist updated successfully.")
 
 
 def convert_subscribe(subscribe_dict):
@@ -64,6 +81,7 @@ def convert_subscribe(subscribe_dict):
                 print(f"Failed to process {filename}. Status code: {response.status_code}, Response: {response.text}")
         except Exception as e:
             print(f"Error processing {filename}: {e}")
+    print(f"Generated file content: {filecontent_dict}")
     return filecontent_dict
 
 
@@ -83,11 +101,13 @@ def test_param():
 
 
 if __name__ == "__main__":
-
+    # 检测 subconverter 服务是否运行
+    check_service()
 
     try:
         # 解码订阅参数
         subscribe_dict = json.loads(base64.b64decode(os.environ['CONVERT_PARAM']).decode("utf-8"))
+        print(f"Decoded CONVERT_PARAM: {subscribe_dict}")
     except Exception as e:
         print(f"Failed to decode CONVERT_PARAM: {e}")
         sys.exit(1)
@@ -95,11 +115,16 @@ if __name__ == "__main__":
     g_github_token = os.environ.get('PERSONAL_TOKEN', '')
     g_gist_id = os.environ.get('GIST_ID', '')
 
+    if not g_github_token or not g_gist_id:
+        print("GitHub token or Gist ID is missing. Skipping Gist update.")
+        sys.exit(1)
+
     # 转换订阅链接
     filecontent_dict = convert_subscribe(subscribe_dict)
 
+    if not filecontent_dict:
+        print("No content generated. Skipping Gist update.")
+        sys.exit(1)
+
     # 更新到 Gist
-    if g_github_token and g_gist_id:
-        update_gist(gist_id=g_gist_id, filecontent_dict=filecontent_dict)
-    else:
-        print("GitHub token or Gist ID is missing. Skipping Gist update.")
+    update_gist(gist_id=g_gist_id, filecontent_dict=filecontent_dict)
