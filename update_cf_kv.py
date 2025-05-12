@@ -17,6 +17,7 @@ class CloudflareKV:
             "Content-Type": "application/json"
         }
 
+    
     def check_key_exists(self, key_name):
         """检查 KV 键是否存在"""
         try:
@@ -29,6 +30,7 @@ class CloudflareKV:
         except:
             return False
 
+    
     def update_config(self, key_name, content, headers=None):
         """更新 Cloudflare KV 存储"""
         try:
@@ -107,21 +109,42 @@ def get_original_headers(url):
     
     return None
 
+
+def extract_url_from_params(params):
+    """从参数中提取订阅 URL"""
+    try:
+        # 查找 "&url=" 和下一个 "&" 之间的内容
+        start = params.find("&url=") + 5
+        if start > 4:  # 确保找到了 "&url="
+            end = params.find("&", start)
+            if end == -1:  # 如果是最后一个参数
+                return params[start:]
+            return params[start:end]
+    except Exception as e:
+        print(f"Error extracting URL from params: {str(e)}")
+    return None
+
+
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
     print("Converting subscription...")
     base_url = "http://localhost:25500/sub"
     results = {}
     
-    # 获取原始订阅的响应头
-    sub_headers = None
-    if 'SUBSCRIPTION_URL' in os.environ:
-        sub_headers = get_original_headers(os.environ['SUBSCRIPTION_URL'])
-    
     for filename, params in subscribe_dict.items():
-        url = f"{base_url}{params}"
         print(f"Converting {filename}...")
         
+        # 从参数中提取原始订阅 URL
+        original_url = extract_url_from_params(params)
+        if not original_url:
+            print(f"Warning: Could not extract URL from params for {filename}")
+            continue
+            
+        # 获取该订阅的响应头
+        sub_headers = get_original_headers(original_url)
+        
+        # 转换配置
+        url = f"{base_url}{params}"
         try:
             response = requests.get(url, timeout=30)
             if response.ok:
@@ -138,7 +161,6 @@ def convert_subscribe(subscribe_dict):
             print(f"Error converting {filename}: {str(e)}")
     
     return results
-
 def main():
     try:
         print("\n=== Starting config update process ===")
@@ -151,7 +173,6 @@ def main():
             "CF_API_TOKEN": "API Token",
             "CONVERT_PARAM": "Convert Parameters"
         }
-
         for var, desc in required_vars.items():
             if var not in os.environ:
                 raise Exception(f"Missing {desc} ({var})")
@@ -178,9 +199,7 @@ def main():
         # 更新每个配置到 KV，使用文件名作为 key
         success_count = 0
         for filename, data in results.items():
-            # 从文件名中移除扩展名作为 KV 的 key
-            key_name = filename.rsplit('.', 1)[0]
-            if cf_kv.update_config(key_name, data["content"], data["headers"]):
+            if cf_kv.update_config(filename, data["content"], data["headers"]):
                 success_count += 1
             else:
                 print(f"Failed to update {filename} to Cloudflare KV")
