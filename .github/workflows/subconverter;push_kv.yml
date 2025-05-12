@@ -56,10 +56,8 @@ jobs:
           CONVERT_PARAM: ${{ secrets.CONVERT_PARAM }}
           
           SUBSCRIPTION_URL: ${{ secrets.SUBSCRIPTION_URL }}
-          PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
-          GIST_ID: ${{ secrets.GIST_ID }}
 
-          
+
         run: |
           python update_cf_kv.py
-          python update.py
+
