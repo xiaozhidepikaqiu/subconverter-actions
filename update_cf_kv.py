@@ -43,7 +43,6 @@ class CloudflareKV:
             kv_data = {
                 "converted_config": base64.b64encode(content.encode()).decode(),
                 "update_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                "current_user": "xiaozhidepikaqiu",  # 添加当前用户
                 "headers": headers or {}
             }
             
@@ -113,13 +112,21 @@ def get_original_headers(url):
 def extract_url_from_params(params):
     """从参数中提取订阅 URL"""
     try:
+        print(f"Processing params: {params}")  # 添加这行来查看完整的参数
         # 查找 "&url=" 和下一个 "&" 之间的内容
         start = params.find("&url=") + 5
         if start > 4:  # 确保找到了 "&url="
             end = params.find("&", start)
             if end == -1:  # 如果是最后一个参数
-                return params[start:]
-            return params[start:end]
+                url = params[start:]
+            else:
+                url = params[start:end]
+            
+            # 检查 URL 是否包含协议前缀，如果没有则添加 https://
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            
+            return url
     except Exception as e:
         print(f"Error extracting URL from params: {str(e)}")
     return None
@@ -136,16 +143,25 @@ def convert_subscribe(subscribe_dict):
         
         # 从参数中提取原始订阅 URL
         original_url = extract_url_from_params(params)
+        print(f"Extracted URL for {filename}: {original_url}")
+        
         if not original_url:
             print(f"Warning: Could not extract URL from params for {filename}")
             continue
             
         # 获取该订阅的响应头
+        print(f"Fetching headers for {filename} from {original_url}")
         sub_headers = get_original_headers(original_url)
+        
+        if sub_headers:
+            print(f"Successfully got headers for {filename}")
+        else:
+            print(f"Warning: No headers received for {filename}")
         
         # 转换配置
         url = f"{base_url}{params}"
         try:
+            print(f"Converting configuration using URL: {url}")
             response = requests.get(url, timeout=30)
             if response.ok:
                 content = response.text
@@ -161,6 +177,8 @@ def convert_subscribe(subscribe_dict):
             print(f"Error converting {filename}: {str(e)}")
     
     return results
+
+
 def main():
     try:
         print("\n=== Starting config update process ===")
