@@ -16,7 +16,7 @@ env:
   CONVERT_PARAM: ${{ secrets.CONVERT_PARAM }}
 
 jobs:
-  update:
+  upupdate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
