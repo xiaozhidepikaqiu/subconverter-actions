@@ -33,36 +33,37 @@ class CloudflareKV:
 
     
     def update_config(self, key_name, content, headers=None):
-        """更新 Cloudflare KV 存储"""
-        try:
-            # 检查键是否已存在
-            is_update = self.check_key_exists(key_name)
-            operation = "Updating" if is_update else "Creating"
-            print(f"{operation} Cloudflare KV for {key_name}...")
-            
-            # 构建存储数据
-            kv_data = {
-                "converted_config": base64.b64encode(content.encode()).decode(),
-                "update_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                "headers": headers or {}
-            }
-            
-            response = requests.put(
-                f"{self.base_url}/{key_name}",
-                headers=self.headers,
-                json=kv_data,
-                timeout=30
-            )
-            
-            if not response.ok:
-                raise Exception(f"API request failed: {response.status_code} - {response.text}")
-            
-            print(f"Successfully {operation.lower()}d Cloudflare KV for {key_name}")
-            return True
-            
-        except Exception as e:
-            print(f"Error {operation.lower()}ing KV for {key_name}: {str(e)}")
-            return False
+    """更新 Cloudflare KV 存储"""
+    try:
+        # 检查键是否已存在
+        is_update = self.check_key_exists(key_name)
+        operation = "Updating" if is_update else "Creating"
+        print(f"{operation} Cloudflare KV for {key_name}...")
+        
+        # 构建存储数据，使用文件名作为配置键
+        kv_data = {
+            key_name: base64.b64encode(content.encode()).decode(),  # 使用文件名作为键
+            "update_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            "current_user": "xiaozhidepikaqiu",  # 添加当前用户
+            "headers": headers or {}
+        }
+        
+        response = requests.put(
+            f"{self.base_url}/{key_name}",
+            headers=self.headers,
+            json=kv_data,
+            timeout=30
+        )
+        
+        if not response.ok:
+            raise Exception(f"API request failed: {response.status_code} - {response.text}")
+        
+        print(f"Successfully {operation.lower()}d Cloudflare KV for {key_name}")
+        return True
+        
+    except Exception as e:
+        print(f"Error {operation.lower()}ing KV for {key_name}: {str(e)}")
+        return False
 
 
 def get_original_headers(url):
