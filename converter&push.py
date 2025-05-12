@@ -193,8 +193,8 @@ def main():
         # 检查环境变量
         required_vars = {
             "CF_ACCOUNT_ID": "Cloudflare Account ID",
-            "CF_NAMESPACE_ID": "KV Namespace ID",
-            "CF_API_TOKEN": "API Token",
+            "CF_KV_ID": "KV Namespace ID",
+            "CF_ACCOUNT_API_TOKEN": "API Token",
             "CONVERT_PARAM": "Convert Parameters"
         }
         for var, desc in required_vars.items():
@@ -216,8 +216,8 @@ def main():
         # 初始化 Cloudflare KV 客户端
         cf_kv = CloudflareKV(
             os.environ["CF_ACCOUNT_ID"],
-            os.environ["CF_NAMESPACE_ID"],
-            os.environ["CF_API_TOKEN"]
+            os.environ["CF_KV_ID"],
+            os.environ["CF_ACCOUNT_API_TOKEN"]
         )
 
         # 更新每个配置到 KV，使用文件名作为 key
