@@ -1,4 +1,4 @@
-name: Update Clash Config
+name: subconverter;push_kv
 
 on:
   schedule:
