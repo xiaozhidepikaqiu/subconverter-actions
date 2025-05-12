@@ -5,6 +5,7 @@ import base64
 import requests
 from datetime import datetime, timedelta
 
+
 class CloudflareKV:
     def __init__(self, account_id, namespace_id, api_token):
         self.account_id = account_id
@@ -16,20 +17,36 @@ class CloudflareKV:
             "Content-Type": "application/json"
         }
 
-    def update_config(self, content, headers=None):
+    def check_key_exists(self, key_name):
+        """检查 KV 键是否存在"""
+        try:
+            response = requests.get(
+                f"{self.base_url}/{key_name}",
+                headers=self.headers,
+                timeout=30
+            )
+            return response.status_code == 200
+        except:
+            return False
+
+    def update_config(self, key_name, content, headers=None):
         """更新 Cloudflare KV 存储"""
         try:
-            print("Updating Cloudflare KV...")
+            # 检查键是否已存在
+            is_update = self.check_key_exists(key_name)
+            operation = "Updating" if is_update else "Creating"
+            print(f"{operation} Cloudflare KV for {key_name}...")
             
             # 构建存储数据
             kv_data = {
                 "converted_config": base64.b64encode(content.encode()).decode(),
                 "update_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                "current_user": "xiaozhidepikaqiu",  # 添加当前用户
                 "headers": headers or {}
             }
             
             response = requests.put(
-                f"{self.base_url}/current_config",
+                f"{self.base_url}/{key_name}",
                 headers=self.headers,
                 json=kv_data,
                 timeout=30
@@ -38,12 +55,13 @@ class CloudflareKV:
             if not response.ok:
                 raise Exception(f"API request failed: {response.status_code} - {response.text}")
             
-            print("Successfully updated Cloudflare KV")
+            print(f"Successfully {operation.lower()}d Cloudflare KV for {key_name}")
             return True
             
         except Exception as e:
-            print(f"Error updating KV: {str(e)}")
+            print(f"Error {operation.lower()}ing KV for {key_name}: {str(e)}")
             return False
+
 
 def get_original_headers(url):
     """获取原始订阅的响应头"""
@@ -157,12 +175,20 @@ def main():
             os.environ["CF_API_TOKEN"]
         )
 
-        # 更新每个配置到 KV
+        # 更新每个配置到 KV，使用文件名作为 key
+        success_count = 0
         for filename, data in results.items():
-            if not cf_kv.update_config(data["content"], data["headers"]):
-                raise Exception(f"Failed to update {filename} to Cloudflare KV")
+            # 从文件名中移除扩展名作为 KV 的 key
+            key_name = filename.rsplit('.', 1)[0]
+            if cf_kv.update_config(key_name, data["content"], data["headers"]):
+                success_count += 1
+            else:
+                print(f"Failed to update {filename} to Cloudflare KV")
 
-        print("\n=== Config update process completed successfully ===")
+        if success_count == 0:
+            raise Exception("No configurations were successfully updated to KV")
+        else:
+            print(f"\n=== Successfully updated {success_count} configurations to KV ===")
 
     except Exception as e:
         print(f"\nError: {str(e)}")
