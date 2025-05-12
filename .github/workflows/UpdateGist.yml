@@ -1,9 +1,9 @@
 name: Subconverter TO gist
 
 on:
-  push:
-    branches:
-      - main  # 每次push到main分支时触发
+  # push:
+  #   branches:
+  #     - main  # 每次push到main分支时触发
   schedule:
     - cron: '0 0 */3 * *'  # 每3天的午夜（UTC时间）触发
   issues:
