@@ -41,5 +41,7 @@ jobs:
           chmod +x subconverter/subconverter
           nohup subconverter/subconverter &
 
-      - name: Update Cloudflare KV
-        run: python update_cf_kv.py
+      - name: python:update_cf_kv
+        run: |
+          python update_cf_kv.py
+          python update.py
