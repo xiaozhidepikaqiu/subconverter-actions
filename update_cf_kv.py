@@ -16,17 +16,22 @@ class CloudflareKV:
             "Content-Type": "application/json"
         }
 
-    def update_config(self, content):
+    def update_config(self, content, headers=None):
         """更新 Cloudflare KV 存储"""
         try:
             print("Updating Cloudflare KV...")
+            
+            # 构建存储数据
+            kv_data = {
+                "converted_config": base64.b64encode(content.encode()).decode(),
+                "update_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                "headers": headers or {}
+            }
+            
             response = requests.put(
                 f"{self.base_url}/current_config",
                 headers=self.headers,
-                json={
-                    "converted_config": base64.b64encode(content.encode()).decode(),
-                    "update_time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-                },
+                json=kv_data,
                 timeout=30
             )
             
@@ -40,11 +45,60 @@ class CloudflareKV:
             print(f"Error updating KV: {str(e)}")
             return False
 
+def get_original_headers(url):
+    """获取原始订阅的响应头"""
+    try:
+        response = requests.get(
+            url,
+            headers={
+                'User-Agent': 'clash-verge/v1.0',
+                'Accept': '*/*',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive'
+            },
+            timeout=30
+        )
+        
+        if response.ok:
+            headers = {}
+            # 保存所有相关的响应头
+            headers_to_save = [
+                'subscription-userinfo',
+                'content-disposition',
+                'profile-update-interval',
+                'profile-title',
+                'profile-web-page-url',
+                'profile-update-timestamp',
+                'support-url'
+            ]
+            
+            for header in headers_to_save:
+                if header in response.headers:
+                    headers[header] = response.headers[header]
+            
+            # 保存其他以 'profile-' 开头的头
+            for key, value in response.headers.items():
+                key_lower = key.lower()
+                if key_lower.startswith('profile-') and key_lower not in headers:
+                    headers[key_lower] = value
+            
+            return headers
+    except Exception as e:
+        print(f"Warning: Failed to fetch original headers: {str(e)}")
+    
+    return None
+
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
     print("Converting subscription...")
     base_url = "http://localhost:25500/sub"
     results = {}
+    
+    # 获取原始订阅的响应头
+    sub_headers = None
+    if 'SUBSCRIPTION_URL' in os.environ:
+        sub_headers = get_original_headers(os.environ['SUBSCRIPTION_URL'])
     
     for filename, params in subscribe_dict.items():
         url = f"{base_url}{params}"
@@ -54,10 +108,12 @@ def convert_subscribe(subscribe_dict):
             response = requests.get(url, timeout=30)
             if response.ok:
                 content = response.text
-                # 添加更新时间
-                update_time = (datetime.now() + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')
+                update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
                 content += f"\n\n# Updated on {update_time}\n"
-                results[filename] = content
+                results[filename] = {
+                    "content": content,
+                    "headers": sub_headers
+                }
             else:
                 print(f"Error converting {filename}: {response.status_code}")
         except Exception as e:
@@ -102,8 +158,8 @@ def main():
         )
 
         # 更新每个配置到 KV
-        for filename, content in results.items():
-            if not cf_kv.update_config(content):
+        for filename, data in results.items():
+            if not cf_kv.update_config(data["content"], data["headers"]):
                 raise Exception(f"Failed to update {filename} to Cloudflare KV")
 
         print("\n=== Config update process completed successfully ===")
