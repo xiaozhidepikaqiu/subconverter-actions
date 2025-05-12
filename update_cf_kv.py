@@ -3,6 +3,7 @@ import sys
 import json
 import base64
 import requests
+import urllib.parse
 from datetime import datetime, timedelta
 
 
@@ -112,7 +113,7 @@ def get_original_headers(url):
 def extract_url_from_params(params):
     """从参数中提取订阅 URL"""
     try:
-        print(f"Processing params: {params}")  # 添加这行来查看完整的参数
+        print(f"Processing params: {params}")
         # 查找 "&url=" 和下一个 "&" 之间的内容
         start = params.find("&url=") + 5
         if start > 4:  # 确保找到了 "&url="
@@ -122,11 +123,15 @@ def extract_url_from_params(params):
             else:
                 url = params[start:end]
             
-            # 检查 URL 是否包含协议前缀，如果没有则添加 https://
-            if not url.startswith(('http://', 'https://')):
-                url = 'https://' + url
+            # URL 解码
+            decoded_url = urllib.parse.unquote(url)
+            print(f"Decoded URL: {decoded_url}")
             
-            return url
+            # 检查 URL 是否包含协议前缀，如果没有则添加 https://
+            if not decoded_url.startswith(('http://', 'https://')):
+                decoded_url = 'https://' + decoded_url
+            
+            return decoded_url
     except Exception as e:
         print(f"Error extracting URL from params: {str(e)}")
     return None
