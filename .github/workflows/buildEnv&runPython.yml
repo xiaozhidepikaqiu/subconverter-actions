@@ -58,6 +58,5 @@ jobs:
           # GIST_ID: ${{ secrets.GIST_ID }}
 
 
-        run: |
-          python converter&push.py
+        run: python converter&push.py
 
