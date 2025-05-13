@@ -277,11 +277,12 @@ def convert_subscribe(subscribe_dict):
             try:
                 headers = get_subscription_headers()
                 
+                # 为源URL添加clash客户端标识
                 source_url = original_url
                 if '?' in source_url:
-                    source_url += '&client=clash'
+                    source_url += '&client=clash&flag=clash'
                 else:
-                    source_url += '?client=clash'
+                    source_url += '?client=clash&flag=clash'
                 
                 source_response = requests.get(source_url, headers=headers, timeout=30)
                 print(f"Source response status: {source_response.status_code}")
@@ -291,14 +292,44 @@ def convert_subscribe(subscribe_dict):
                     print(f"Source content length: {len(source_content)}")
                     print(f"Source content preview: {source_content[:100]}")
                     
-                    # 将源内容写入临时文件
-                    temp_file = f"/tmp/sub_content_{filename}.yaml"
+                    # 检查内容中是否包含 proxies 部分
+                    if 'proxies:' not in source_content:
+                        print("Warning: No proxies found in source content, trying to add proxies section")
+                        # 尝试提取节点信息并添加 proxies 标记
+                        lines = source_content.splitlines()
+                        new_lines = []
+                        found_proxies = False
+                        
+                        for line in lines:
+                            if line.strip().startswith(('type:', 'server:', 'port:')):
+                                if not found_proxies:
+                                    new_lines.append('proxies:')
+                                    found_proxies = True
+                            new_lines.append(line)
+                        
+                        if found_proxies:
+                            source_content = '\n'.join(new_lines)
+                    
+                    # 将处理后的内容写入临时文件
+                    temp_dir = os.path.join(os.getcwd(), 'temp')
+                    os.makedirs(temp_dir, exist_ok=True)
+                    temp_file = os.path.join(temp_dir, f'sub_content_{filename}.yaml')
+                    
                     with open(temp_file, 'w', encoding='utf-8') as f:
                         f.write(source_content)
                     
                     # 修改参数，使用本地文件作为源
                     local_url = f"file://{temp_file}"
-                    new_params = params.replace(urllib.parse.quote(original_url), urllib.parse.quote(local_url))
+                    # 在原始参数中找到 url= 的位置
+                    url_start = params.find('&url=')
+                    if url_start != -1:
+                        url_end = params.find('&', url_start + 5)
+                        if url_end != -1:
+                            new_params = params[:url_start + 5] + urllib.parse.quote(local_url) + params[url_end:]
+                        else:
+                            new_params = params[:url_start + 5] + urllib.parse.quote(local_url)
+                    else:
+                        new_params = params
                 else:
                     print(f"Error getting source content: {source_response.status_code}")
                     new_params = params
@@ -358,6 +389,13 @@ def convert_subscribe(subscribe_dict):
                 
         except Exception as e:
             print(f"Error processing {filename}: {str(e)}")
+            
+        # 清理临时文件
+        try:
+            if 'temp_file' in locals() and os.path.exists(temp_file):
+                os.remove(temp_file)
+        except:
+            pass
     
     return results
 
