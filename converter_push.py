@@ -1,11 +1,11 @@
 import os
 import sys
 import json
+import yaml
 import base64
 import requests
 import urllib.parse
 from datetime import datetime, timedelta
-
 
 class CloudflareKV:
     def __init__(self, account_id, kv_id, account_api_token):
@@ -38,9 +38,9 @@ class CloudflareKV:
             operation = "Updating" if is_update else "Creating"
             print(f"{operation} CF KV for {key_name}...")
             
-            # 构建存储数据，使用文件名作为配置键
+            # 构建存储数据
             kv_data = {
-                key_name: base64.b64encode(content.encode()).decode(),  # 使用文件名作为键
+                key_name: base64.b64encode(content.encode()).decode(),
                 "update_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
                 "headers": headers or {}
             }
@@ -62,45 +62,148 @@ class CloudflareKV:
             print(f"Error: {operation.lower()}ing CF KV for {key_name}: {str(e)}")
             return False
 
+def get_subscription_headers():
+    """获取订阅请求头"""
+    return {
+        'User-Agent': 'ClashforWindows/0.20.39',
+        'Accept': '*/*',
+        'Accept-Encoding': 'gzip, deflate',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Pragma': 'no-cache'
+    }
+
+def check_subscription_format(content):
+    """检查并尝试多种格式转换"""
+    try:
+        # 尝试 Base64 解码
+        try:
+            base64_decoded = base64.b64decode(content.strip()).decode('utf-8')
+            if 'vmess://' in base64_decoded or 'trojan://' in base64_decoded or 'ss://' in base64_decoded:
+                return base64_decoded
+        except:
+            pass
+
+        # 检查是否是 URI 格式
+        if any(line.startswith(('vmess://', 'trojan://', 'ss://')) for line in content.splitlines()):
+            return content
+
+        # 尝试 YAML 解析
+        try:
+            config = yaml.safe_load(content)
+            if isinstance(config, dict):
+                # 如果已经有 proxies 字段，检查格式
+                if 'proxies' in config:
+                    return content
+
+                # 寻找代理节点特征
+                proxy_list = []
+                for key, value in config.items():
+                    if isinstance(value, list):
+                        for item in value:
+                            if isinstance(item, dict) and 'type' in item:
+                                if item['type'].lower() in ['vmess', 'ss', 'ssr', 'trojan']:
+                                    proxy_list.append(item)
+                
+                if proxy_list:
+                    new_config = {
+                        'proxies': proxy_list,
+                        'proxy-groups': [{
+                            'name': 'Proxy',
+                            'type': 'select',
+                            'proxies': [p.get('name', f'Node {i+1}') for i, p in enumerate(proxy_list)]
+                        }]
+                    }
+                    # 保留原始配置中的其他设置
+                    for key, value in config.items():
+                        if key not in ['proxies', 'proxy-groups']:
+                            new_config[key] = value
+                    return yaml.dump(new_config, allow_unicode=True)
+        except:
+            pass
+
+        return content
+
+    except Exception as e:
+        print(f"Error checking subscription format: {str(e)}")
+        return content
+
+def convert_links_to_clash(content):
+    """将链接格式转换为 Clash 配置"""
+    proxies = []
+    proxy_names = []
+    
+    for line in content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+            
+        if line.startswith('vmess://'):
+            try:
+                b64 = line[8:]
+                decoded = base64.b64decode(b64).decode('utf-8')
+                config = json.loads(decoded)
+                proxy = {
+                    'name': config.get('ps', f'vmess-{len(proxies)+1}'),
+                    'type': 'vmess',
+                    'server': config.get('add'),
+                    'port': int(config.get('port')),
+                    'uuid': config.get('id'),
+                    'alterId': int(config.get('aid', 0)),
+                    'cipher': config.get('scy', 'auto'),
+                    'tls': config.get('tls') == 'tls'
+                }
+                proxies.append(proxy)
+                proxy_names.append(proxy['name'])
+            except:
+                continue
+                
+        elif line.startswith(('ss://', 'trojan://')):
+            try:
+                # 处理其他类型的代理链接
+                pass
+            except:
+                continue
+    
+    if proxies:
+        return yaml.dump({
+            'proxies': proxies,
+            'proxy-groups': [{
+                'name': 'Proxy',
+                'type': 'select',
+                'proxies': proxy_names
+            }]
+        }, allow_unicode=True)
+    
+    return None
 
 def mask_sensitive_url(url):
     """对敏感 URL 进行脱敏处理"""
     try:
         if not url:
             return ""
-        # 解析 URL
         parsed = urllib.parse.urlparse(url)
-        
-        # 获取查询参数
         query_params = urllib.parse.parse_qs(parsed.query)
         
-        # 处理 token 或其他敏感参数
         for sensitive_param in ['token', 'password', 'key', 'secret']:
             if sensitive_param in query_params:
                 value = query_params[sensitive_param][0]
                 if len(value) > 8:
                     query_params[sensitive_param] = [f"{value[:4]}...{value[-4:]}"]
         
-        # 重建查询字符串
         masked_query = urllib.parse.urlencode(query_params, doseq=True)
-        
-        # 重建 URL，只显示域名和处理后的参数
         return f"{parsed.scheme}://{parsed.netloc}/...?{masked_query[:30]}..."
     except:
         return "masked_url"
-
 
 def mask_params(params):
     """对参数进行脱敏处理"""
     try:
         if not params:
             return ""
-        # 找到 url 参数的位置
         url_start = params.find("&url=")
         if url_start >= 0:
-            # 保留 url= 之前的部分
             prefix = params[:url_start + 5]
-            # 对 URL 部分进行处理
             remaining = params[url_start + 5:]
             url_end = remaining.find("&")
             if url_end >= 0:
@@ -110,35 +213,28 @@ def mask_params(params):
                 url_part = remaining
                 after_url = ""
             
-            # 解码并脱敏 URL
             decoded_url = urllib.parse.unquote(url_part)
             masked_url = mask_sensitive_url(decoded_url)
-            
-            # 返回处理后的参数字符串
             return f"{prefix}{urllib.parse.quote(masked_url)}{after_url[:30]}..."
         return f"{params[:30]}..."
     except:
         return "masked_params"
 
-
 def extract_url_from_params(params):
     """从参数中提取订阅 URL"""
     try:
         print(f"Processing params: {mask_params(params)}")
-        # 查找 "&url=" 和下一个 "&" 之间的内容
         start = params.find("&url=") + 5
-        if start > 4:  # 确保找到了 "&url="
+        if start > 4:
             end = params.find("&", start)
-            if end == -1:  # 如果是最后一个参数
+            if end == -1:
                 url = params[start:]
             else:
                 url = params[start:end]
             
-            # URL 解码
             decoded_url = urllib.parse.unquote(url)
             print(f"Decoded URL: {mask_sensitive_url(decoded_url)}")
             
-            # 检查 URL 是否包含协议前缀
             if not decoded_url.startswith(('http://', 'https://')):
                 decoded_url = 'https://' + decoded_url
             
@@ -147,66 +243,18 @@ def extract_url_from_params(params):
         print(f"Error extracting URL from params: {str(e)}")
     return None
 
-
-def get_subscription_headers(client_type="clash"):
-    """获取订阅请求头"""
-    headers = {
-        'User-Agent': 'ClashforWindows/0.20.39',
-        'Accept': '*/*',
-        'Accept-Encoding': 'gzip, deflate',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Pragma': 'no-cache'
-    }
-    return headers
-
-def try_decode_content(content):
-    """尝试解码内容"""
-    try:
-        # 首先尝试直接解析
-        if content.strip().startswith(('proxies:', 'mixed-port:', '{')):
-            return content
-
-        # 如果内容包含可见字符，可能是其他格式
-        if any(c.isprintable() for c in content):
-            return content
-
-        # 尝试 base64 解码
-        try:
-            decoded = base64.b64decode(content.strip()).decode('utf-8')
-            if decoded.strip().startswith(('proxies:', 'mixed-port:', '{')):
-                return decoded
-        except:
-            pass
-
-        return None
-    except Exception as e:
-        print(f"Error decoding content: {str(e)}")
-        return None
-
 def get_original_headers(url):
     """获取原始订阅的响应头"""
     try:
         headers = get_subscription_headers()
-        
-        # 构建请求 URL
-        request_url = url
-        if '?' in request_url:
-            request_url += '&client=clash'
-        else:
-            request_url += '?client=clash'
-        
-        response = requests.get(request_url, headers=headers, timeout=30)
+        response = requests.get(url, headers=headers, timeout=30)
         
         if response.ok:
-            # 获取响应内容
+            # 检查内容格式
             content = response.text
-            decoded_content = try_decode_content(content)
-            
+            decoded_content = check_subscription_format(content)
             if decoded_content:
                 print("Successfully decoded subscription content")
-            else:
-                print("Warning: Could not decode subscription content")
             
             # 处理响应头
             result_headers = {}
@@ -249,80 +297,11 @@ def get_original_headers(url):
                     result_headers[key_lower] = value
             
             return result_headers
+            
     except Exception as e:
         print(f"Warning: Failed to fetch original headers: {str(e)}")
     
     return None
-
-def extract_proxies_from_clash(content):
-    """从 Clash 配置中提取代理信息"""
-    try:
-        import yaml
-        
-        # 解析 YAML 内容
-        config = yaml.safe_load(content)
-        
-        # 提取代理信息
-        proxies = []
-        if 'proxies' in config:
-            return content
-        
-        # 如果没有 proxies 字段，查找其他可能的字段
-        proxy_fields = ['Proxy', 'proxy-groups', 'Proxy Group']
-        found_proxies = False
-        
-        for field in proxy_fields:
-            if field in config:
-                proxies.extend(config[field])
-                found_proxies = True
-        
-        if not found_proxies:
-            # 搜索配置中的代理节点特征
-            proxy_patterns = [
-                ('type', ['ss', 'ssr', 'vmess', 'trojan', 'http', 'socks5']),
-                ('server', None),
-                ('port', None),
-                ('password', None),
-                ('uuid', None)
-            ]
-            
-            # 遍历配置的所有部分
-            for key, value in config.items():
-                if isinstance(value, list):
-                    for item in value:
-                        if isinstance(item, dict):
-                            # 检查是否包含代理特征
-                            for pattern, valid_values in proxy_patterns:
-                                if pattern in item:
-                                    if valid_values is None or item[pattern] in valid_values:
-                                        proxies.append(item)
-                                        found_proxies = True
-                                        break
-        
-        if found_proxies:
-            # 创建新的配置
-            new_config = {
-                'proxies': proxies,
-                'proxy-groups': [
-                    {
-                        'name': 'Proxy',
-                        'type': 'select',
-                        'proxies': [p.get('name', f"Proxy {i+1}") for i, p in enumerate(proxies)]
-                    }
-                ]
-            }
-            
-            # 保留原始配置中的其他设置
-            for key, value in config.items():
-                if key not in ['proxies', 'proxy-groups', 'Proxy', 'Proxy Group']:
-                    new_config[key] = value
-            
-            return yaml.dump(new_config, allow_unicode=True)
-        
-        return None
-    except Exception as e:
-        print(f"Error extracting proxies: {str(e)}")
-        return None
 
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
@@ -343,30 +322,30 @@ def convert_subscribe(subscribe_dict):
                 print(f"Warning: Could not extract URL from params for {filename}")
                 continue
             
-            # 检查订阅源是否可访问
+            # 获取订阅内容
             print(f"\nChecking subscription source...")
+            headers = get_subscription_headers()
+            
             try:
-                headers = get_subscription_headers()
-                
-                source_url = original_url
-                if '?' in source_url:
-                    source_url += '&client=clash'
+                # 添加客户端标识
+                if '?' in original_url:
+                    source_url = f"{original_url}&client=clash"
                 else:
-                    source_url += '?client=clash'
+                    source_url = f"{original_url}?client=clash"
                 
-                source_response = requests.get(source_url, headers=headers, timeout=30)
-                print(f"Source response status: {source_response.status_code}")
+                response = requests.get(source_url, headers=headers, timeout=30)
+                print(f"Source response status: {response.status_code}")
                 
-                if source_response.ok:
-                    source_content = source_response.text
-                    print(f"Source content length: {len(source_content)}")
-                    print(f"Source content preview: {source_content[:100]}")
+                if response.ok:
+                    content = response.text
+                    print(f"Source content length: {len(content)}")
+                    print(f"Source content preview: {content[:100]}")
                     
-                    # 首先尝试直接转换
-                    print(f"\nTrying direct conversion first...")
+                    # 1. 尝试直接转换
+                    print("\nTrying direct conversion first...")
                     direct_response = requests.get(f"{base_url}{params}", timeout=30)
                     
-                    if direct_response.ok:
+                    if direct_response.ok and 'proxies:' in direct_response.text:
                         print("Direct conversion successful")
                         content = direct_response.text
                         print(f"Converted content length: {len(content)}")
@@ -379,26 +358,29 @@ def convert_subscribe(subscribe_dict):
                         print(f"Successfully converted configuration for {filename}")
                         continue
                     
-                    print("Direct conversion failed, trying to extract proxies...")
+                    print("Direct conversion failed, trying format conversion...")
                     
-                    # 提取和转换代理信息
-                    converted_content = extract_proxies_from_clash(source_content)
+                    # 2. 尝试格式转换
+                    converted_content = check_subscription_format(content)
+                    if not converted_content and 'vmess://' in content:
+                        converted_content = convert_links_to_clash(content)
+                    
                     if not converted_content:
-                        print("Failed to extract proxies from configuration")
+                        print("Failed to convert subscription format")
                         continue
                     
-                    # 使用临时文件
+                    # 3. 保存到临时文件
                     import tempfile
                     temp_file = tempfile.NamedTemporaryFile(mode='w+', suffix='.yaml', delete=False)
                     temp_file.write(converted_content)
                     temp_file.flush()
                     print(f"Created temporary file: {temp_file.name}")
                     
-                    # 检查文件内容
+                    # 检查临时文件内容
                     with open(temp_file.name, 'r') as f:
                         print(f"Temporary file content preview: {f.read()[:200]}")
                     
-                    # 修改参数使用本地文件
+                    # 4. 使用临时文件进行转换
                     local_url = f"file://{temp_file.name}"
                     url_start = params.find('&url=')
                     if url_start != -1:
@@ -410,14 +392,14 @@ def convert_subscribe(subscribe_dict):
                     else:
                         new_params = params
                     
-                    # 转换配置
+                    # 5. 执行转换
                     url = f"{base_url}{new_params}"
                     print(f"\nConverting configuration using local file...")
                     print(f"Full URL: {url}")
                     response = requests.get(url, timeout=30)
                     print(f"Subconverter response status: {response.status_code}")
                     
-                    if response.ok:
+                    if response.ok and 'proxies:' in response.text:
                         content = response.text
                         print(f"Converted content length: {len(content)}")
                         update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -431,7 +413,7 @@ def convert_subscribe(subscribe_dict):
                         print(f"Error response: {response.text}")
                         print(f"Error headers: {dict(response.headers)}")
                 else:
-                    print(f"Error getting source content: {source_response.status_code}")
+                    print(f"Error getting source content: {response.status_code}")
                     
             except Exception as e:
                 print(f"Error during conversion: {str(e)}")
@@ -441,7 +423,7 @@ def convert_subscribe(subscribe_dict):
             
         finally:
             # 清理临时文件
-            if temp_file:
+            if temp_file and os.path.exists(temp_file.name):
                 try:
                     os.unlink(temp_file.name)
                     print(f"Cleaned up temporary file: {temp_file.name}")
@@ -462,6 +444,7 @@ def main():
             "CF_ACCOUNT_API_TOKEN": "CF Account API Token",
             "CONVERT_PARAM": "Convert Parame"
         }
+        
         for var, desc in required_vars.items():
             if var not in os.environ:
                 raise Exception(f"Missing {desc} ({var})")
@@ -485,7 +468,7 @@ def main():
             os.environ["CF_ACCOUNT_API_TOKEN"]
         )
 
-        # 更新每个配置到 KV，使用文件名作为 key
+        # 更新每个配置到 KV
         success_count = 0
         for filename, data in results.items():
             if cf_kv.update_config(filename, data["content"], data["headers"]):
