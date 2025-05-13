@@ -1,6 +1,6 @@
-# subconverter-actions
+# subconverterONactions_pushTOkv
 
-利用GithubActions将自己的订阅通过[subconverter](https://github.com/tindy2013/subconverter)转换工具转换，并上传至特定的gist。
+利用GithubActions：构建环境，运行订阅转换工具[subconverter](https://github.com/tindy2013/subconverter)；执行Python进行订阅转换，同时推送到cf kv。
 
 这里采用的是[asdlokj1qpi23/subconverter](https://github.com/asdlokj1qpi23/subconverter)的fork版本，其支持Hysteria2协议。
 
