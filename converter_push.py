@@ -222,42 +222,94 @@ def convert_subscribe(subscribe_dict):
     results = {}
     
     for filename, params in subscribe_dict.items():
-        print(f"Converting {filename}...")
+        print(f"\n=== Processing {filename} ===")
         
-        # 从参数中提取原始订阅 URL
-        original_url = extract_url_from_params(params)
-        print(f"Extracted URL for {filename}: {mask_sensitive_url(original_url)}")
-        
-        if not original_url:
-            print(f"Warning: Could not extract URL from params for {filename}")
-            continue
-            
-        # 获取该订阅的响应头
-        print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
-        sub_headers = get_original_headers(original_url)
-        
-        if sub_headers:
-            print(f"Successfully got headers for {filename}")
-        else:
-            print(f"Warning: No headers received for {filename}")
-        
-        # 转换配置
-        url = f"{base_url}{params}"
         try:
-            print(f"Converting configuration using URL: {mask_params(params)}")
-            response = requests.get(url, timeout=30)
-            if response.ok:
-                content = response.text
-                update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                content += f"\n\n# Updated on {update_time}\n"  # 添加updatetime时间戳
-                results[filename] = {
-                    "content": content,
-                    "headers": sub_headers
-                }
-            else:
-                print(f"Error: converting {filename}: {response.status_code}")
+            # 1. 提取并验证原始订阅URL
+            original_url = extract_url_from_params(params)
+            print(f"1. Original URL: {original_url}")
+            
+            if not original_url:
+                print("Error: Failed to extract URL")
+                continue
+            
+            # 2. 验证原始订阅内容
+            try:
+                print("2. Checking original subscription...")
+                sub_response = requests.get(
+                    original_url,
+                    headers={
+                        'User-Agent': 'clash-verge/v1.0',
+                        'Accept': '*/*'
+                    },
+                    timeout=30
+                )
+                print(f"Original subscription status: {sub_response.status_code}")
+                print(f"Original subscription content length: {len(sub_response.text)}")
+                if sub_response.text:
+                    print(f"Content preview: {sub_response.text[:100]}...")
+            except Exception as e:
+                print(f"Error checking original subscription: {e}")
+            
+            # 3. 获取订阅头信息
+            print("\n3. Fetching subscription headers...")
+            sub_headers = get_original_headers(original_url)
+            if sub_headers:
+                print("Headers received:")
+                for k, v in sub_headers.items():
+                    print(f"  {k}: {v}")
+            
+            # 4. 转换配置
+            print("\n4. Converting configuration...")
+            url = f"{base_url}{params}"
+            try:
+                # 打印完整的转换请求信息
+                print(f"Subconverter URL: {url}")
+                print("Making request to subconverter...")
+                
+                response = requests.get(url, timeout=30)
+                print(f"Subconverter response status: {response.status_code}")
+                
+                if response.ok:
+                    content = response.text
+                    print(f"Converted content length: {len(content)}")
+                    print(f"Content preview: {content[:100]}...")
+                    
+                    update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    content += f"\n\n# Updated on {update_time}\n"
+                    results[filename] = {
+                        "content": content,
+                        "headers": sub_headers
+                    }
+                    print(f"Successfully converted {filename}")
+                else:
+                    print(f"Conversion failed with status {response.status_code}")
+                    print(f"Error response: {response.text}")
+                    # 尝试不同的请求方式
+                    print("\nTrying alternative request...")
+                    alt_url = f"{base_url}?target=clash&url={urllib.parse.quote(original_url)}"
+                    alt_response = requests.get(alt_url, timeout=30)
+                    print(f"Alternative request status: {alt_response.status_code}")
+                    if alt_response.ok:
+                        print("Alternative request succeeded!")
+                        print(f"Content length: {len(alt_response.text)}")
+            except Exception as e:
+                print(f"Error during conversion: {str(e)}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
+                
         except Exception as e:
-            print(f"Error: converting {filename}: {str(e)}")
+            print(f"Error processing {filename}: {str(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+        
+        print(f"=== Finished processing {filename} ===\n")
+    
+    # 处理摘要
+    print("\n=== Conversion Summary ===")
+    print(f"Total subscriptions: {len(subscribe_dict)}")
+    print(f"Successfully converted: {len(results)}")
+    print(f"Failed: {len(subscribe_dict) - len(results)}")
     
     return results
 
