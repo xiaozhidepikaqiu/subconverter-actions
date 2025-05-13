@@ -262,6 +262,7 @@ def convert_subscribe(subscribe_dict):
     
     for filename, params in subscribe_dict.items():
         print(f"\nConverting {filename}...")
+        temp_file = None
         
         try:
             # 从参数中提取原始订阅 URL
@@ -277,7 +278,6 @@ def convert_subscribe(subscribe_dict):
             try:
                 headers = get_subscription_headers()
                 
-                # 为源URL添加clash客户端标识
                 source_url = original_url
                 if '?' in source_url:
                     source_url += '&client=clash&flag=clash'
@@ -292,35 +292,61 @@ def convert_subscribe(subscribe_dict):
                     print(f"Source content length: {len(source_content)}")
                     print(f"Source content preview: {source_content[:100]}")
                     
-                    # 检查内容中是否包含 proxies 部分
-                    if 'proxies:' not in source_content:
-                        print("Warning: No proxies found in source content, trying to add proxies section")
-                        # 尝试提取节点信息并添加 proxies 标记
-                        lines = source_content.splitlines()
-                        new_lines = []
-                        found_proxies = False
+                    # 直接使用原始 URL 进行转换
+                    conversion_url = f"{base_url}{params}"
+                    print(f"\nTrying direct conversion first...")
+                    direct_response = requests.get(conversion_url, timeout=30)
+                    
+                    if direct_response.ok:
+                        print("Direct conversion successful")
+                        content = direct_response.text
+                        print(f"Converted content length: {len(content)}")
+                        update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                        content += f"\n\n# Updated on {update_time}\n"
+                        results[filename] = {
+                            "content": content,
+                            "headers": get_original_headers(original_url)
+                        }
+                        print(f"Successfully converted configuration for {filename}")
+                        continue
+                    
+                    print("Direct conversion failed, trying with local file...")
+                    
+                    # 如果直接转换失败，尝试使用本地文件
+                    if 'proxies:' not in source_content and 'Proxy:' not in source_content:
+                        print("Adding proxies section to the content...")
+                        # 提取端口配置
+                        config_lines = []
+                        proxy_lines = []
+                        in_proxy = False
                         
-                        for line in lines:
-                            if line.strip().startswith(('type:', 'server:', 'port:')):
-                                if not found_proxies:
-                                    new_lines.append('proxies:')
-                                    found_proxies = True
-                            new_lines.append(line)
+                        for line in source_content.splitlines():
+                            if line.strip().startswith(('server:', 'port:', 'type:', 'cipher:', 'password:')):
+                                if not in_proxy:
+                                    config_lines.append('proxies:')
+                                    in_proxy = True
+                                proxy_lines.append(line)
+                            else:
+                                if not in_proxy:
+                                    config_lines.append(line)
+                                else:
+                                    proxy_lines.append(line)
                         
-                        if found_proxies:
-                            source_content = '\n'.join(new_lines)
+                        source_content = '\n'.join(config_lines + proxy_lines)
                     
-                    # 将处理后的内容写入临时文件
-                    temp_dir = os.path.join(os.getcwd(), 'temp')
-                    os.makedirs(temp_dir, exist_ok=True)
-                    temp_file = os.path.join(temp_dir, f'sub_content_{filename}.yaml')
+                    # 使用临时文件
+                    import tempfile
+                    temp_file = tempfile.NamedTemporaryFile(mode='w+', suffix='.yaml', delete=False)
+                    temp_file.write(source_content)
+                    temp_file.flush()
+                    print(f"Created temporary file: {temp_file.name}")
                     
-                    with open(temp_file, 'w', encoding='utf-8') as f:
-                        f.write(source_content)
+                    # 检查文件内容
+                    with open(temp_file.name, 'r') as f:
+                        print(f"Temporary file content preview: {f.read()[:200]}")
                     
-                    # 修改参数，使用本地文件作为源
-                    local_url = f"file://{temp_file}"
-                    # 在原始参数中找到 url= 的位置
+                    # 修改参数使用本地文件
+                    local_url = f"file://{temp_file.name}"
                     url_start = params.find('&url=')
                     if url_start != -1:
                         url_end = params.find('&', url_start + 5)
@@ -330,72 +356,44 @@ def convert_subscribe(subscribe_dict):
                             new_params = params[:url_start + 5] + urllib.parse.quote(local_url)
                     else:
                         new_params = params
+                    
+                    # 转换配置
+                    url = f"{base_url}{new_params}"
+                    print(f"\nConverting configuration using local file...")
+                    print(f"Full URL: {url}")
+                    response = requests.get(url, timeout=30)
+                    print(f"Subconverter response status: {response.status_code}")
+                    
+                    if response.ok:
+                        content = response.text
+                        print(f"Converted content length: {len(content)}")
+                        update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                        content += f"\n\n# Updated on {update_time}\n"
+                        results[filename] = {
+                            "content": content,
+                            "headers": get_original_headers(original_url)
+                        }
+                        print(f"Successfully converted configuration for {filename}")
+                    else:
+                        print(f"Error response: {response.text}")
+                        print(f"Error headers: {dict(response.headers)}")
                 else:
                     print(f"Error getting source content: {source_response.status_code}")
-                    new_params = params
                     
-            except Exception as e:
-                print(f"Error accessing source: {str(e)}")
-                new_params = params
-            
-            # 获取该订阅的响应头
-            print(f"\nFetching headers from {mask_sensitive_url(original_url)}")
-            sub_headers = get_original_headers(original_url)
-            
-            if sub_headers:
-                print(f"Headers received:")
-                for key, value in sub_headers.items():
-                    print(f"  {key}: {value}")
-            else:
-                print(f"Warning: No headers received")
-            
-            # 转换配置
-            url = f"{base_url}{new_params}"
-            try:
-                print(f"\nConverting configuration...")
-                print(f"Full URL: {url}")
-                response = requests.get(url, timeout=30)
-                print(f"Subconverter response status: {response.status_code}")
-                
-                if response.ok:
-                    content = response.text
-                    print(f"Converted content length: {len(content)}")
-                    update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                    content += f"\n\n# Updated on {update_time}\n"
-                    results[filename] = {
-                        "content": content,
-                        "headers": sub_headers
-                    }
-                    print(f"Successfully converted configuration for {filename}")
-                else:
-                    print(f"Error response: {response.text}")
-                    print(f"Error headers: {dict(response.headers)}")
-                    
-                # 清理临时文件
-                if 'temp_file' in locals():
-                    try:
-                        os.remove(temp_file)
-                    except:
-                        pass
-                        
             except Exception as e:
                 print(f"Error during conversion: {str(e)}")
-                # 清理临时文件
-                if 'temp_file' in locals():
-                    try:
-                        os.remove(temp_file)
-                    except:
-                        pass
                 
         except Exception as e:
             print(f"Error processing {filename}: {str(e)}")
             
-        # 清理临时文件
-        try:
-            if 'temp_file' in locals() and os.path.exists(temp_file):
-                os.remove(temp_file)
-        except:
-            pass
+        finally:
+            # 清理临时文件
+            if temp_file:
+                try:
+                    os.unlink(temp_file.name)
+                    print(f"Cleaned up temporary file: {temp_file.name}")
+                except Exception as e:
+                    print(f"Error cleaning up temporary file: {str(e)}")
     
     return results
 
