@@ -4,6 +4,8 @@
 
 这里采用的是[asdlokj1qpi23/subconverter](https://github.com/asdlokj1qpi23/subconverter)的fork版本，其支持Hysteria2协议。
 
+?target=clash&url=&insert=false&config=&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=false&scv=true&fdn=false&clash.doh=true&new_name=true
+
 ## 使用步骤
 
 1.  Fork 本仓库
