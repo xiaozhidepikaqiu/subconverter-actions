@@ -191,7 +191,7 @@ def mask_params(params):
 def extract_url_from_params(params):
     """从参数中提取订阅 URL"""
     try:
-        print(f"Processing params: {params}")
+        print(f"Processing params: {mask_params(params)}")
         # 查找 "&url=" 和下一个 "&" 之间的内容
         start = params.find("&url=") + 5
         if start > 4:  # 确保找到了 "&url="
@@ -203,7 +203,7 @@ def extract_url_from_params(params):
             
             # URL 解码
             decoded_url = urllib.parse.unquote(url)
-            print(f"Decoded URL: {decoded_url}")
+            print(f"Decoded URL: {mask_sensitive_url(decoded_url)}")
             
             # 检查 URL 是否包含协议前缀
             if not decoded_url.startswith(('http://', 'https://')):
@@ -215,72 +215,6 @@ def extract_url_from_params(params):
     return None
 
 
-def check_subscription_content(url):
-    """检查订阅内容"""
-    try:
-        # 尝试不同的 User-Agent
-        user_agents = [
-            'clash-verge/v1.0',
-            'Clash-verge',
-            'Clash.Meta',
-            'ClashX',
-            'Shadowrocket',
-            'Quantumult/X'
-        ]
-        
-        for ua in user_agents:
-            print(f"\nTrying with User-Agent: {ua}")
-            headers = {
-                'User-Agent': ua,
-                'Accept': '*/*',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive'
-            }
-            
-            response = requests.get(url, headers=headers, timeout=30)
-            
-            if response.ok:
-                content = response.text
-                print(f"Response with {ua}:")
-                print(f"Status Code: {response.status_code}")
-                print(f"Content Length: {len(content)}")
-                print(f"Content Type: {response.headers.get('content-type', 'Not specified')}")
-                
-                # 检查内容是否是 base64 编码
-                try:
-                    if ';base64,' in content:
-                        base64_content = content.split(';base64,')[1]
-                        decoded = base64.b64decode(base64_content).decode()
-                        content = decoded
-                    elif all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=' for c in content.strip()):
-                        decoded = base64.b64decode(content).decode()
-                        content = decoded
-                except:
-                    pass
-                
-                # 检查内容格式
-                if 'proxies:' in content:
-                    print("Found proxies configuration")
-                    proxy_index = content.find('proxies:')
-                    print("Proxies section preview:")
-                    section = content[proxy_index:proxy_index+300]
-                    print(section.replace('\n', '\n  '))
-                    return content
-                elif 'vmess://' in content or 'trojan://' in content or 'ss://' in content:
-                    print("Found proxy links")
-                    print(f"Preview: {content[:100]}...")
-                    return content
-                
-            print(f"No valid subscription content found with {ua}")
-            
-        print("Failed to get valid subscription content with all User-Agents")
-        return None
-        
-    except Exception as e:
-        print(f"Error checking subscription: {str(e)}")
-        return None
-
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
     print("Start Subscription Conversion")
@@ -288,72 +222,42 @@ def convert_subscribe(subscribe_dict):
     results = {}
     
     for filename, params in subscribe_dict.items():
-        print(f"\n=== Processing {filename} ===")
+        print(f"Converting {filename}...")
         
+        # 从参数中提取原始订阅 URL
+        original_url = extract_url_from_params(params)
+        print(f"Extracted URL for {filename}: {mask_sensitive_url(original_url)}")
+        
+        if not original_url:
+            print(f"Warning: Could not extract URL from params for {filename}")
+            continue
+            
+        # 获取该订阅的响应头
+        print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
+        sub_headers = get_original_headers(original_url)
+        
+        if sub_headers:
+            print(f"Successfully got headers for {filename}")
+        else:
+            print(f"Warning: No headers received for {filename}")
+        
+        # 转换配置
+        url = f"{base_url}{params}"
         try:
-            # 1. 提取并验证原始订阅URL
-            original_url = extract_url_from_params(params)
-            print(f"1. Original URL: {original_url}")
-            
-            if not original_url:
-                print("Error: Failed to extract URL")
-                continue
-            
-            # 2. 检查原始订阅内容
-            print("\n2. Analyzing original subscription...")
-            content = check_subscription_content(original_url)
-            if not content:
-                print("Error: Failed to get subscription content")
-                continue
-            
-            # 3. 获取订阅头信息
-            print("\n3. Fetching subscription headers...")
-            sub_headers = get_original_headers(original_url)
-            
-            # 4. 转换配置
-            print("\n4. Converting configuration...")
-            url = f"{base_url}{params}"
-            try:
-                print("Making request to subconverter...")
-                print(f"Full URL: {url}")
-                
-                response = requests.get(url, timeout=30)
-                print(f"Response status: {response.status_code}")
-                
-                if response.ok:
-                    content = response.text
-                    if not content:
-                        raise Exception("Empty response from subconverter")
-                    
-                    update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                    content += f"\n\n# Updated on {update_time}\n"
-                    results[filename] = {
-                        "content": content,
-                        "headers": sub_headers
-                    }
-                    print(f"Successfully converted {filename}")
-                else:
-                    print(f"Conversion failed with status {response.status_code}")
-                    print(f"Error response: {response.text}")
-                    # 尝试直接发送原始内容给subconverter
-                    print("\nTrying direct conversion...")
-                    encoded_content = base64.b64encode(content.encode()).decode()
-                    alt_params = f"?target=clash&content={encoded_content}&config=https://raw.githubusercontent.com/xiaozhidepikaqiu/MySubconverterRemoteConfig/refs/heads/main/MyRemoteConfig.ini"
-                    alt_url = f"{base_url}{alt_params}"
-                    alt_response = requests.get(alt_url, timeout=30)
-                    print(f"Direct conversion status: {alt_response.status_code}")
-                    if alt_response.ok:
-                        print("Direct conversion succeeded!")
-                        content = alt_response.text
-                        results[filename] = {
-                            "content": content,
-                            "headers": sub_headers
-                        }
-            except Exception as e:
-                print(f"Error during conversion: {str(e)}")
-                
+            print(f"Converting configuration using URL: {mask_params(params)}")
+            response = requests.get(url, timeout=30)
+            if response.ok:
+                content = response.text
+                update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                content += f"\n\n# Updated on {update_time}\n"  # 添加updatetime时间戳
+                results[filename] = {
+                    "content": content,
+                    "headers": sub_headers
+                }
+            else:
+                print(f"Error: converting {filename}: {response.status_code}")
         except Exception as e:
-            print(f"Error processing {filename}: {str(e)}")
+            print(f"Error: converting {filename}: {str(e)}")
     
     return results
 
