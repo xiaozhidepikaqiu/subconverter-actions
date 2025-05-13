@@ -63,78 +63,6 @@ class CloudflareKV:
             return False
 
 
-def get_original_headers(url):
-    """获取原始订阅的响应头"""
-    try:
-        headers = {
-            'User-Agent': 'Clash/v1.0',
-            'Accept': '*/*',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'Clash-Version': 'v1.0',
-            'Content-Type': 'application/json'
-        }
-
-        # 添加 flag 参数到 URL
-        if '?' in url:
-            url += '&flag=clash'
-        else:
-            url += '?flag=clash'
-        
-        response = requests.get(url, headers=headers, timeout=30)
-        
-        if response.ok:
-            headers = {}
-            # 保存所有相关的响应头
-            headers_to_save = [
-                'subscription-userinfo',
-                'content-disposition',
-                'profile-update-interval',
-                'profile-title',
-                'profile-web-page-url',
-                'profile-update-timestamp',
-                'support-url'
-            ]
-            
-            for header in headers_to_save:
-                if header in response.headers:
-                    if header == 'content-disposition':
-                        # 处理 content-disposition 头，添加 T: 前缀
-                        content_disp = response.headers[header]
-                        if 'filename' in content_disp:
-                            # 如果是 filename*= 格式
-                            if 'filename*=' in content_disp:
-                                parts = content_disp.split("''")
-                                if len(parts) > 1:
-                                    encoding_part = parts[0]
-                                    filename_part = parts[1]
-                                    new_filename = f"T:{filename_part}"
-                                    headers[header] = f"{encoding_part}''{new_filename}"
-                            # 如果是简单的 filename= 格式
-                            else:
-                                filename_start = content_disp.find('filename=') + 9
-                                filename = content_disp[filename_start:]
-                                if filename.startswith('"'):
-                                    filename = filename[1:-1]
-                                new_filename = f"T:{filename}"
-                                headers[header] = f"attachment;filename={new_filename}"
-                    else:
-                        headers[header] = response.headers[header]
-            
-            # 保存其他以 'profile-' 开头的头
-            for key, value in response.headers.items():
-                key_lower = key.lower()
-                if key_lower.startswith('profile-') and key_lower not in headers:
-                    headers[key_lower] = value
-            
-            return headers
-    except Exception as e:
-        print(f"Warning: Failed to fetch original headers: {str(e)}")
-    
-    return None
-
-
 def mask_sensitive_url(url):
     """对敏感 URL 进行脱敏处理"""
     try:
@@ -220,6 +148,107 @@ def extract_url_from_params(params):
     return None
 
 
+def try_decode_content(content):
+    """尝试解码内容"""
+    try:
+        # 首先尝试直接解析
+        if content.strip().startswith(('proxies:', 'mixed-port:', '{')):
+            return content
+
+        # 尝试 base64 解码
+        try:
+            decoded = base64.b64decode(content.strip()).decode('utf-8')
+            if decoded.strip().startswith(('proxies:', 'mixed-port:', '{')):
+                return decoded
+        except:
+            pass
+
+        # 如果内容包含可见字符，可能是其他格式
+        if any(c.isprintable() for c in content):
+            return content
+
+        return None
+    except Exception as e:
+        print(f"Error decoding content: {str(e)}")
+        return None
+
+def get_original_headers(url):
+    """获取原始订阅的响应头"""
+    try:
+        headers = {
+            'User-Agent': 'ClashforWindows/0.20.39',
+            'Accept': '*/*',
+            'Accept-Encoding': 'gzip, deflate',  # 移除 br 编码
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Pragma': 'no-cache'
+        }
+        
+        # 构建请求 URL
+        request_url = url
+        if '?' in request_url:
+            request_url += '&client=clash'
+        else:
+            request_url += '?client=clash'
+        
+        response = requests.get(request_url, headers=headers, timeout=30)
+        
+        if response.ok:
+            # 获取响应内容
+            content = response.text
+            decoded_content = try_decode_content(content)
+            
+            if decoded_content:
+                print("Successfully decoded subscription content")
+            else:
+                print("Warning: Could not decode subscription content")
+            
+            # 处理响应头
+            headers = {}
+            headers_to_save = [
+                'subscription-userinfo',
+                'content-disposition',
+                'profile-update-interval',
+                'profile-title',
+                'profile-web-page-url',
+                'profile-update-timestamp',
+                'support-url'
+            ]
+            
+            for header in headers_to_save:
+                if header in response.headers:
+                    if header == 'content-disposition':
+                        content_disp = response.headers[header]
+                        if 'filename' in content_disp:
+                            if 'filename*=' in content_disp:
+                                parts = content_disp.split("''")
+                                if len(parts) > 1:
+                                    encoding_part = parts[0]
+                                    filename_part = parts[1]
+                                    new_filename = f"T:{filename_part}"
+                                    headers[header] = f"{encoding_part}''{new_filename}"
+                            else:
+                                filename_start = content_disp.find('filename=') + 9
+                                filename = content_disp[filename_start:]
+                                if filename.startswith('"'):
+                                    filename = filename[1:-1]
+                                new_filename = f"T:{filename}"
+                                headers[header] = f"attachment;filename={new_filename}"
+                    else:
+                        headers[header] = response.headers[header]
+            
+            # 保存其他以 'profile-' 开头的头
+            for key, value in response.headers.items():
+                key_lower = key.lower()
+                if key_lower.startswith('profile-') and key_lower not in headers:
+                    headers[key_lower] = value
+            
+            return headers
+    except Exception as e:
+        print(f"Warning: Failed to fetch original headers: {str(e)}")
+    
+    return None
+
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
     print("Start Subscription Conversion")
@@ -241,25 +270,32 @@ def convert_subscribe(subscribe_dict):
             # 检查订阅源是否可访问
             print(f"\nChecking subscription source...")
             try:
-                source_headers = {
-                    'User-Agent': 'Clash/v1.0',
+                headers = {
+                    'User-Agent': 'ClashforWindows/0.20.39',
                     'Accept': '*/*',
-                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Accept-Encoding': 'gzip, deflate',  # 移除 br 编码
                     'Cache-Control': 'no-cache',
                     'Connection': 'keep-alive',
-                    'Clash-Version': 'v1.0',
-                    'Content-Type': 'application/json'
+                    'Pragma': 'no-cache'
                 }
+                
                 source_url = original_url
                 if '?' in source_url:
-                    source_url += '&flag=clash'
+                    source_url += '&client=clash'
                 else:
-                    source_url += '?flag=clash'
+                    source_url += '?client=clash'
                 
-                source_response = requests.get(source_url, headers=source_headers, timeout=30)
+                source_response = requests.get(source_url, headers=headers, timeout=30)
                 print(f"Source response status: {source_response.status_code}")
-                print(f"Source content length: {len(source_response.text)}")
-                print(f"Source content preview: {source_response.text[:100]}")
+                
+                # 尝试解码内容
+                decoded_content = try_decode_content(source_response.text)
+                if decoded_content:
+                    print(f"Source content length: {len(decoded_content)}")
+                    print(f"Source content preview: {decoded_content[:100]}")
+                else:
+                    print("Warning: Could not decode source content")
+                    
             except Exception as e:
                 print(f"Error accessing source: {str(e)}")
             
@@ -302,7 +338,6 @@ def convert_subscribe(subscribe_dict):
             print(f"Error processing {filename}: {str(e)}")
     
     return results
-
 
 def main():
     try:
