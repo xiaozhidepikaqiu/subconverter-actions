@@ -254,6 +254,76 @@ def get_original_headers(url):
     
     return None
 
+def extract_proxies_from_clash(content):
+    """从 Clash 配置中提取代理信息"""
+    try:
+        import yaml
+        
+        # 解析 YAML 内容
+        config = yaml.safe_load(content)
+        
+        # 提取代理信息
+        proxies = []
+        if 'proxies' in config:
+            return content
+        
+        # 如果没有 proxies 字段，查找其他可能的字段
+        proxy_fields = ['Proxy', 'proxy-groups', 'Proxy Group']
+        found_proxies = False
+        
+        for field in proxy_fields:
+            if field in config:
+                proxies.extend(config[field])
+                found_proxies = True
+        
+        if not found_proxies:
+            # 搜索配置中的代理节点特征
+            proxy_patterns = [
+                ('type', ['ss', 'ssr', 'vmess', 'trojan', 'http', 'socks5']),
+                ('server', None),
+                ('port', None),
+                ('password', None),
+                ('uuid', None)
+            ]
+            
+            # 遍历配置的所有部分
+            for key, value in config.items():
+                if isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, dict):
+                            # 检查是否包含代理特征
+                            for pattern, valid_values in proxy_patterns:
+                                if pattern in item:
+                                    if valid_values is None or item[pattern] in valid_values:
+                                        proxies.append(item)
+                                        found_proxies = True
+                                        break
+        
+        if found_proxies:
+            # 创建新的配置
+            new_config = {
+                'proxies': proxies,
+                'proxy-groups': [
+                    {
+                        'name': 'Proxy',
+                        'type': 'select',
+                        'proxies': [p.get('name', f"Proxy {i+1}") for i, p in enumerate(proxies)]
+                    }
+                ]
+            }
+            
+            # 保留原始配置中的其他设置
+            for key, value in config.items():
+                if key not in ['proxies', 'proxy-groups', 'Proxy', 'Proxy Group']:
+                    new_config[key] = value
+            
+            return yaml.dump(new_config, allow_unicode=True)
+        
+        return None
+    except Exception as e:
+        print(f"Error extracting proxies: {str(e)}")
+        return None
+
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
     print("Start Subscription Conversion")
@@ -280,9 +350,9 @@ def convert_subscribe(subscribe_dict):
                 
                 source_url = original_url
                 if '?' in source_url:
-                    source_url += '&client=clash&flag=clash'
+                    source_url += '&client=clash'
                 else:
-                    source_url += '?client=clash&flag=clash'
+                    source_url += '?client=clash'
                 
                 source_response = requests.get(source_url, headers=headers, timeout=30)
                 print(f"Source response status: {source_response.status_code}")
@@ -292,10 +362,9 @@ def convert_subscribe(subscribe_dict):
                     print(f"Source content length: {len(source_content)}")
                     print(f"Source content preview: {source_content[:100]}")
                     
-                    # 直接使用原始 URL 进行转换
-                    conversion_url = f"{base_url}{params}"
+                    # 首先尝试直接转换
                     print(f"\nTrying direct conversion first...")
-                    direct_response = requests.get(conversion_url, timeout=30)
+                    direct_response = requests.get(f"{base_url}{params}", timeout=30)
                     
                     if direct_response.ok:
                         print("Direct conversion successful")
@@ -310,34 +379,18 @@ def convert_subscribe(subscribe_dict):
                         print(f"Successfully converted configuration for {filename}")
                         continue
                     
-                    print("Direct conversion failed, trying with local file...")
+                    print("Direct conversion failed, trying to extract proxies...")
                     
-                    # 如果直接转换失败，尝试使用本地文件
-                    if 'proxies:' not in source_content and 'Proxy:' not in source_content:
-                        print("Adding proxies section to the content...")
-                        # 提取端口配置
-                        config_lines = []
-                        proxy_lines = []
-                        in_proxy = False
-                        
-                        for line in source_content.splitlines():
-                            if line.strip().startswith(('server:', 'port:', 'type:', 'cipher:', 'password:')):
-                                if not in_proxy:
-                                    config_lines.append('proxies:')
-                                    in_proxy = True
-                                proxy_lines.append(line)
-                            else:
-                                if not in_proxy:
-                                    config_lines.append(line)
-                                else:
-                                    proxy_lines.append(line)
-                        
-                        source_content = '\n'.join(config_lines + proxy_lines)
+                    # 提取和转换代理信息
+                    converted_content = extract_proxies_from_clash(source_content)
+                    if not converted_content:
+                        print("Failed to extract proxies from configuration")
+                        continue
                     
                     # 使用临时文件
                     import tempfile
                     temp_file = tempfile.NamedTemporaryFile(mode='w+', suffix='.yaml', delete=False)
-                    temp_file.write(source_content)
+                    temp_file.write(converted_content)
                     temp_file.flush()
                     print(f"Created temporary file: {temp_file.name}")
                     
