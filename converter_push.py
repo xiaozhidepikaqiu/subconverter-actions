@@ -249,7 +249,7 @@ def convert_subscribe(subscribe_dict):
             if response.ok:
                 content = response.text
                 update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                content += f"\n\n# Updated on {update_time}\n"
+                content += f"\n\n# Updated on {update_time}\n"  # 添加updatetime时间戳
                 results[filename] = {
                     "content": content,
                     "headers": sub_headers
