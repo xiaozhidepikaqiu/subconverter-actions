@@ -222,69 +222,116 @@ def extract_url_from_params(params):
 
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
-    print("Start Subscription Conversion")
+    print("\n=== Starting Subscription Conversion Process ===")
+    print(f"Number of subscriptions to convert: {len(subscribe_dict)}")
+    print("=" * 50)
+    
     base_url = "http://localhost:25500/sub"
     results = {}
     
     for filename, params in subscribe_dict.items():
-        # URL 编码文件名以支持中文
-        encoded_filename = urllib.parse.quote(filename)
-        print(f"Converting {filename}...")
+        print(f"\n>>> Processing subscription: {filename}")
+        print("-" * 40)
         
         try:
-            # 从参数中提取原始订阅 URL
-            original_url = extract_url_from_params(params)
-            print(f"Extracted URL for {filename}: {mask_sensitive_url(original_url)}")
+            # 1. 参数处理阶段
+            print("\n[1] Parameter Processing Stage:")
+            print(f"Original params length: {len(params)}")
+            print(f"Raw params preview: {params[:100]}...")
             
-            if not original_url:
-                print(f"Warning: Could not extract URL from params for {filename}")
+            # 2. URL 提取阶段
+            print("\n[2] URL Extraction Stage:")
+            original_url = extract_url_from_params(params)
+            if original_url:
+                print(f"Successfully extracted URL: {mask_sensitive_url(original_url)}")
+            else:
+                print("Failed to extract URL from params")
                 continue
-                
-            # 获取该订阅的响应头
-            print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
+            
+            # 3. 获取原始订阅头信息
+            print("\n[3] Original Headers Fetching Stage:")
+            print(f"Fetching headers from: {mask_sensitive_url(original_url)}")
             sub_headers = get_original_headers(original_url)
             
             if sub_headers:
-                print(f"Successfully got headers for {filename}")
+                print("Successfully got headers:")
+                for key, value in sub_headers.items():
+                    print(f"  {key}: {value}")
             else:
-                print(f"Warning: No headers received for {filename}")
+                print("Warning: No headers received")
             
-            # 转换配置
+            # 4. 转换配置阶段
+            print("\n[4] Configuration Conversion Stage:")
             url = f"{base_url}{params}"
             try:
-                print(f"Converting configuration using URL: {mask_params(params)}")
+                print(f"Making request to subconverter:")
+                print(f"- Base URL: {base_url}")
+                print(f"- Full URL preview: {url[:100]}...")
+                
                 response = requests.get(url, timeout=30)
+                print(f"\nResponse Information:")
+                print(f"- Status Code: {response.status_code}")
+                print(f"- Response Headers:")
+                for key, value in response.headers.items():
+                    print(f"  {key}: {value}")
                 
-                print(f"Response status: {response.status_code}")
                 if not response.ok:
-                    print(f"Error response content: {response.text[:200]}")
-                
-                if response.ok:
-                    content = response.text
-                    if not content:
-                        raise Exception("Empty response content")
-                    
-                    update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                    content += f"\n\n# Updated on {update_time}\n"
-                    
-                    # 使用原始文件名（包含中文）作为键
-                    results[filename] = {
-                        "content": content,
-                        "headers": sub_headers
-                    }
-                    print(f"Successfully converted configuration for {filename}")
-                else:
+                    print("\nError Response Content:")
+                    print("-" * 40)
+                    print(response.text[:500])
+                    print("-" * 40)
                     print(f"Error: converting {filename}: {response.status_code}")
-                    
+                    continue
+                
+                content = response.text
+                if not content:
+                    print("Error: Empty response content")
+                    continue
+                
+                content_preview = content[:200] + "..." if len(content) > 200 else content
+                print("\nResponse Content Preview:")
+                print("-" * 40)
+                print(content_preview)
+                print("-" * 40)
+                
+                update_time = "2025-05-13 08:21:42"
+                content += f"\n\n# Updated on {update_time}\n"
+                content += f"# Updated by xiaozhidepikaqiu\n"
+                
+                results[filename] = {
+                    "content": content,
+                    "headers": sub_headers
+                }
+                print(f"\nSuccessfully processed {filename}")
+                
             except requests.exceptions.RequestException as e:
-                print(f"Network error while converting {filename}: {str(e)}")
+                print(f"\nNetwork Error:")
+                print(f"- Error Type: {type(e).__name__}")
+                print(f"- Error Message: {str(e)}")
+                print(f"- Full URL: {url}")
             except Exception as e:
-                print(f"Error while processing {filename}: {str(e)}")
+                print(f"\nUnexpected Error:")
+                print(f"- Error Type: {type(e).__name__}")
+                print(f"- Error Message: {str(e)}")
+                import traceback
+                print("- Traceback:")
+                print(traceback.format_exc())
                 
         except Exception as e:
-            print(f"Error: converting {filename}: {str(e)}")
+            print(f"\nCritical Error while processing {filename}:")
+            print(f"- Error Type: {type(e).__name__}")
+            print(f"- Error Message: {str(e)}")
             import traceback
-            print(f"Traceback: {traceback.format_exc()}")
+            print("- Traceback:")
+            print(traceback.format_exc())
+        
+        print("\n" + "=" * 50)
+    
+    print("\n=== Conversion Process Summary ===")
+    print(f"Total subscriptions: {len(subscribe_dict)}")
+    print(f"Successfully converted: {len(results)}")
+    print(f"Failed conversions: {len(subscribe_dict) - len(results)}")
+    print("=" * 50 + "\n")
     
     return results
 
