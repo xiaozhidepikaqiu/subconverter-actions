@@ -224,40 +224,60 @@ def convert_subscribe(subscribe_dict):
     for filename, params in subscribe_dict.items():
         print(f"Converting {filename}...")
         
-        # 从参数中提取原始订阅 URL
-        original_url = extract_url_from_params(params)
-        print(f"Extracted URL for {filename}: {mask_sensitive_url(original_url)}")
-        
-        if not original_url:
-            print(f"Warning: Could not extract URL from params for {filename}")
-            continue
-            
-        # 获取该订阅的响应头
-        print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
-        sub_headers = get_original_headers(original_url)
-        
-        if sub_headers:
-            print(f"Successfully got headers for {filename}")
-        else:
-            print(f"Warning: No headers received for {filename}")
-        
-        # 转换配置
-        url = f"{base_url}{params}"
         try:
-            print(f"Converting configuration using URL: {mask_params(params)}")
-            response = requests.get(url, timeout=30)
-            if response.ok:
-                content = response.text
-                update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                content += f"\n\n# Updated on {update_time}\n"  # 添加updatetime时间戳
-                results[filename] = {
-                    "content": content,
-                    "headers": sub_headers
-                }
+            # 从参数中提取原始订阅 URL
+            original_url = extract_url_from_params(params)
+            print(f"Extracted URL for {filename}: {mask_sensitive_url(original_url)}")
+            
+            if not original_url:
+                print(f"Warning: Could not extract URL from params for {filename}")
+                continue
+                
+            # 获取该订阅的响应头
+            print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
+            sub_headers = get_original_headers(original_url)
+            
+            if sub_headers:
+                print(f"Successfully got headers for {filename}")
             else:
-                print(f"Error: converting {filename}: {response.status_code}")
+                print(f"Warning: No headers received for {filename}")
+            
+            # 转换配置
+            url = f"{base_url}{params}"
+            try:
+                print(f"Converting configuration using URL: {mask_params(params)}")
+                response = requests.get(url, timeout=30)
+                
+                # 打印详细的响应信息以帮助调试
+                print(f"Response status: {response.status_code}")
+                
+                if response.ok:
+                    content = response.text
+                    if not content:
+                        raise Exception("Empty response content")
+                    
+                    # 添加更新时间
+                    update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    content += f"\n\n# Updated on {update_time}\n"
+                    
+                    results[filename] = {
+                        "content": content,
+                        "headers": sub_headers
+                    }
+                    print(f"Successfully converted configuration for {filename}")
+                else:
+                    print(f"Error: converting {filename}: {response.status_code}")
+                    print(f"Error response content: {response.text[:200]}")
+                    
+            except requests.exceptions.RequestException as e:
+                print(f"Network error while converting {filename}: {str(e)}")
+            except Exception as e:
+                print(f"Error while processing {filename}: {str(e)}")
+                
         except Exception as e:
             print(f"Error: converting {filename}: {str(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
     
     return results
 
