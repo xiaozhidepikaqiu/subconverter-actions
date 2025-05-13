@@ -218,46 +218,65 @@ def extract_url_from_params(params):
 def check_subscription_content(url):
     """检查订阅内容"""
     try:
-        response = requests.get(
-            url,
-            headers={
-                'User-Agent': 'clash-verge/v1.0',
+        # 尝试不同的 User-Agent
+        user_agents = [
+            'clash-verge/v1.0',
+            'Clash-verge',
+            'Clash.Meta',
+            'ClashX',
+            'Shadowrocket',
+            'Quantumult/X'
+        ]
+        
+        for ua in user_agents:
+            print(f"\nTrying with User-Agent: {ua}")
+            headers = {
+                'User-Agent': ua,
                 'Accept': '*/*',
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Cache-Control': 'no-cache',
                 'Connection': 'keep-alive'
-            },
-            timeout=30
-        )
+            }
+            
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.ok:
+                content = response.text
+                print(f"Response with {ua}:")
+                print(f"Status Code: {response.status_code}")
+                print(f"Content Length: {len(content)}")
+                print(f"Content Type: {response.headers.get('content-type', 'Not specified')}")
+                
+                # 检查内容是否是 base64 编码
+                try:
+                    if ';base64,' in content:
+                        base64_content = content.split(';base64,')[1]
+                        decoded = base64.b64decode(base64_content).decode()
+                        content = decoded
+                    elif all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=' for c in content.strip()):
+                        decoded = base64.b64decode(content).decode()
+                        content = decoded
+                except:
+                    pass
+                
+                # 检查内容格式
+                if 'proxies:' in content:
+                    print("Found proxies configuration")
+                    proxy_index = content.find('proxies:')
+                    print("Proxies section preview:")
+                    section = content[proxy_index:proxy_index+300]
+                    print(section.replace('\n', '\n  '))
+                    return content
+                elif 'vmess://' in content or 'trojan://' in content or 'ss://' in content:
+                    print("Found proxy links")
+                    print(f"Preview: {content[:100]}...")
+                    return content
+                
+            print(f"No valid subscription content found with {ua}")
+            
+        print("Failed to get valid subscription content with all User-Agents")
+        return None
         
-        if response.ok:
-            content = response.text
-            print(f"\nSubscription Content Analysis:")
-            print(f"Status Code: {response.status_code}")
-            print(f"Content Length: {len(content)}")
-            print(f"Content Type: {response.headers.get('content-type', 'Not specified')}")
-            
-            # 尝试检测内容格式
-            if content.startswith('mixed-port:') or 'proxies:' in content[:1000]:
-                print("Format: Appears to be Clash configuration")
-            elif content.startswith('vmess://') or content.startswith('ss://'):
-                print("Format: Base64 encoded links")
-            else:
-                print("Format: Unknown")
-            
-            # 查找关键部分
-            print("\nKey sections found:")
-            if 'proxies:' in content:
-                proxy_index = content.find('proxies:')
-                print(f"Found 'proxies:' section at position {proxy_index}")
-                # 显示proxies部分的前300个字符
-                print("Proxies section preview:")
-                section = content[proxy_index:proxy_index+300]
-                print(section.replace('\n', '\n  '))
-            else:
-                print("No 'proxies:' section found")
-            
-            return content
     except Exception as e:
         print(f"Error checking subscription: {str(e)}")
         return None
