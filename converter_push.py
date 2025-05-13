@@ -222,55 +222,61 @@ def extract_url_from_params(params):
 
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
-    print("\n=== Detailed Subscription Conversion Process ===")
-    print(f"Subscriptions to process: {len(subscribe_dict)}")
-    print("=" * 60)
+    print("\n" + "="*50)
+    print("Detailed Subscription Conversion Process")
+    print(f"Start Time (UTC): 2025-05-13 08:29:08")
+    print("="*50)
     
     base_url = "http://localhost:25500/sub"
     results = {}
     
-    for idx, (filename, params) in enumerate(subscribe_dict.items(), 1):
-        print(f"\n[{idx}/{len(subscribe_dict)}] Processing: {filename}")
-        print("-" * 60)
+    for filename, params in subscribe_dict.items():
+        print(f"\n>>> Processing subscription: {filename}")
+        print("-"*40)
         
         try:
-            # 1. 详细的参数信息
-            print("\n[Parameters]")
-            print(f"Raw params: {params[:100]}...")
-            decoded_params = urllib.parse.unquote(params)
-            print(f"Decoded params: {decoded_params[:100]}...")
+            # 1. 显示原始参数
+            print("\n1. Original Parameters:")
+            print(f"Raw params length: {len(params)}")
+            print(f"Raw params: {params[:200]}...")
             
-            # 2. URL提取
-            print("\n[URL Extraction]")
+            # 2. URL提取和验证
             original_url = extract_url_from_params(params)
-            if original_url:
-                print(f"✓ URL extracted successfully")
-                print(f"- Masked URL: {mask_sensitive_url(original_url)}")
-                print(f"- URL length: {len(original_url)}")
-            else:
-                print("✗ Failed to extract URL")
-                continue
+            print(f"\n2. URL Extraction:")
+            print(f"Extracted URL: {mask_sensitive_url(original_url)}")
             
-            # 3. 获取原始订阅头信息
-            print("\n[Original Subscription Headers]")
+            # 3. 验证原始订阅可访问性
+            print(f"\n3. Validating Original Subscription:")
+            validate_response = requests.get(original_url, 
+                headers={
+                    'User-Agent': 'clash-verge/v1.0',
+                    'Accept': '*/*',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive'
+                },
+                timeout=30
+            )
+            print(f"Original subscription status code: {validate_response.status_code}")
+            print(f"Original subscription content length: {len(validate_response.text)}")
+            print(f"Original subscription content preview: {validate_response.text[:100]}...")
+            
+            # 4. 获取订阅头信息
             sub_headers = get_original_headers(original_url)
+            print(f"\n4. Subscription Headers:")
             if sub_headers:
-                print("✓ Headers retrieved successfully:")
                 for key, value in sub_headers.items():
-                    print(f"- {key}: {value}")
-            else:
-                print("⚠ No headers received")
+                    print(f"  {key}: {value}")
             
-            # 4. 转换配置
-            print("\n[Configuration Conversion]")
+            # 5. 转换配置
+            print(f"\n5. Converting Configuration:")
             url = f"{base_url}{params}"
             try:
-                print("Making request to subconverter:")
+                print(f"Making request to subconverter:")
                 print(f"- Base URL: {base_url}")
-                print(f"- Params length: {len(params)}")
                 print(f"- Full URL length: {len(url)}")
+                print(f"- Full URL: {mask_sensitive_url(url)}")
                 
-                # 添加请求头信息
                 headers = {
                     'User-Agent': 'clash-verge/v1.0',
                     'Accept': '*/*',
@@ -279,38 +285,34 @@ def convert_subscribe(subscribe_dict):
                     'Connection': 'keep-alive'
                 }
                 
-                print("\nRequest Headers:")
-                for key, value in headers.items():
-                    print(f"- {key}: {value}")
-                
                 response = requests.get(url, headers=headers, timeout=30)
                 
-                print("\nResponse Details:")
-                print(f"- Status Code: {response.status_code}")
-                print(f"- Response Headers:")
+                print(f"\nSubconverter Response:")
+                print(f"Status Code: {response.status_code}")
+                print("Response Headers:")
                 for key, value in response.headers.items():
                     print(f"  {key}: {value}")
                 
                 if not response.ok:
-                    print("\n⚠ Error Response Content:")
-                    print("-" * 40)
-                    print(response.text)
-                    print("-" * 40)
-                    raise Exception(f"HTTP {response.status_code}: {response.text}")
+                    print("\n!!! Conversion Error Details !!!")
+                    print(f"Status Code: {response.status_code}")
+                    print(f"Response Headers: {dict(response.headers)}")
+                    print(f"Error Content: {response.text}")
+                    print("\nRequest Details:")
+                    print(f"URL: {mask_sensitive_url(url)}")
+                    print("Headers:")
+                    for key, value in headers.items():
+                        print(f"  {key}: {value}")
+                    print("\nOriginal Subscription Details:")
+                    print(f"URL: {mask_sensitive_url(original_url)}")
+                    print(f"Content Length: {len(validate_response.text)}")
+                    print(f"Content Preview: {validate_response.text[:200]}...")
+                    raise Exception(f"Conversion failed with status {response.status_code}: {response.text}")
                 
                 content = response.text
-                if not content:
-                    raise Exception("Empty response content")
-                
-                print("\nResponse Content Preview:")
-                print("-" * 40)
-                print(f"Content length: {len(content)}")
-                print(f"First 100 chars: {content[:100]}...")
-                print("-" * 40)
-                
-                # 添加更新信息
-                content += f"\n\n# Updated on {current_time}\n"
-                content += f"# Updated by {current_user}\n"
+                print(f"\nConverted Content:")
+                print(f"Length: {len(content)}")
+                print(f"Preview: {content[:200]}...")
                 
                 results[filename] = {
                     "content": content,
@@ -319,38 +321,33 @@ def convert_subscribe(subscribe_dict):
                 print(f"\n✓ Successfully processed {filename}")
                 
             except requests.exceptions.RequestException as e:
-                print(f"\n⚠ Network Error:")
-                print(f"Type: {type(e).__name__}")
-                print(f"Message: {str(e)}")
+                print(f"\n!!! Network Error !!!")
+                print(f"Error Type: {type(e).__name__}")
+                print(f"Error Message: {str(e)}")
                 print(f"URL: {mask_sensitive_url(url)}")
                 raise
                 
-            except Exception as e:
-                print(f"\n⚠ Processing Error:")
-                print(f"Type: {type(e).__name__}")
-                print(f"Message: {str(e)}")
-                import traceback
-                print("Traceback:")
-                print(traceback.format_exc())
-                raise
-                
         except Exception as e:
-            print(f"\n✗ Failed to process {filename}")
-            print(f"Error: {str(e)}")
+            print(f"\n!!! Error Processing {filename} !!!")
+            print(f"Error Type: {type(e).__name__}")
+            print(f"Error Message: {str(e)}")
+            import traceback
+            print("Full Traceback:")
+            print(traceback.format_exc())
         
-        print("\n" + "=" * 60)
+        print("\n" + "="*50)
     
-    # 处理摘要
+    # 添加处理摘要
     print("\n=== Conversion Summary ===")
-    print(f"Total subscriptions processed: {len(subscribe_dict)}")
-    print(f"Successful conversions: {len(results)}")
-    print(f"Failed conversions: {len(subscribe_dict) - len(results)}")
+    print(f"Total subscriptions: {len(subscribe_dict)}")
+    print(f"Successfully converted: {len(results)}")
+    print(f"Failed: {len(subscribe_dict) - len(results)}")
     if len(results) < len(subscribe_dict):
         print("\nFailed subscriptions:")
         for name in subscribe_dict.keys():
             if name not in results:
                 print(f"- {name}")
-    print("=" * 60 + "\n")
+    print("="*50 + "\n")
     
     return results
 
