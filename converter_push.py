@@ -44,7 +44,6 @@ class CloudflareKV:
             kv_data = {
                 key_name: base64.b64encode(content.encode()).decode(),  # 使用文件名作为键
                 "update_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                "current_user": "xiaozhidepikaqiu",  # 添加当前用户
                 "headers": headers or {}
             }
             
@@ -96,7 +95,28 @@ def get_original_headers(url):
             
             for header in headers_to_save:
                 if header in response.headers:
-                    headers[header] = response.headers[header]
+                    if header == 'content-disposition':
+                        # 处理 content-disposition 头，添加 T: 前缀
+                        content_disp = response.headers[header]
+                        if 'filename' in content_disp:
+                            # 如果是 filename*= 格式
+                            if 'filename*=' in content_disp:
+                                parts = content_disp.split("''")
+                                if len(parts) > 1:
+                                    encoding_part = parts[0]
+                                    filename_part = parts[1]
+                                    new_filename = f"T:{filename_part}"
+                                    headers[header] = f"{encoding_part}''{new_filename}"
+                            # 如果是简单的 filename= 格式
+                            else:
+                                filename_start = content_disp.find('filename=') + 9
+                                filename = content_disp[filename_start:]
+                                if filename.startswith('"'):
+                                    filename = filename[1:-1]
+                                new_filename = f"T:{filename}"
+                                headers[header] = f"attachment;filename={new_filename}"
+                    else:
+                        headers[header] = response.headers[header]
             
             # 保存其他以 'profile-' 开头的头
             for key, value in response.headers.items():
