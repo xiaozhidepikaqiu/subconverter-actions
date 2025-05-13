@@ -8,13 +8,13 @@ from datetime import datetime, timedelta
 
 
 class CloudflareKV:
-    def __init__(self, account_id, namespace_id, api_token):
+    def __init__(self, account_id, kv_id, account_api_token):
         self.account_id = account_id
-        self.namespace_id = namespace_id
-        self.api_token = api_token
-        self.base_url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/storage/kv/namespaces/{namespace_id}/values"
+        self.kv_id = kv_id
+        self.account_api_token = account_api_token
+        self.base_url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/storage/kv/namespaces/{kv_id}/values"
         self.headers = {
-            "Authorization": f"Bearer {api_token}",
+            "Authorization": f"Bearer {account_api_token}",
             "Content-Type": "application/json"
         }
 
@@ -212,10 +212,10 @@ def main():
 
         # 检查环境变量
         required_vars = {
-            "CF_ACCOUNT_ID": "Cloudflare Account ID",
-            "CF_KV_ID": "KV Namespace ID",
-            "CF_ACCOUNT_API_TOKEN": "API Token",
-            "CONVERT_PARAM": "Convert Parameters"
+            "CF_ACCOUNT_ID": "CF Account ID",
+            "CF_KV_ID": "CF KV ID",
+            "CF_ACCOUNT_API_TOKEN": "CF Account API Token",
+            "CONVERT_PARAM": "Convert Parame"
         }
         for var, desc in required_vars.items():
             if var not in os.environ:
