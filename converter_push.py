@@ -18,7 +18,6 @@ class CloudflareKV:
             "Content-Type": "application/json"
         }
 
-    
     def check_key_exists(self, key_name):
         """检查 KV 键是否存在"""
         try:
@@ -31,7 +30,6 @@ class CloudflareKV:
         except:
             return False
 
-    
     def update_config(self, key_name, content, headers=None):
         """更新 CF KV 存储"""
         try:
@@ -68,17 +66,23 @@ class CloudflareKV:
 def get_original_headers(url):
     """获取原始订阅的响应头"""
     try:
-        response = requests.get(
-            url,
-            headers={
-                'User-Agent': 'clash-verge/v1.0',
-                'Accept': '*/*',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive'
-            },
-            timeout=30
-        )
+        headers = {
+            'User-Agent': 'Clash/v1.0',
+            'Accept': '*/*',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Clash-Version': 'v1.0',
+            'Content-Type': 'application/json'
+        }
+
+        # 添加 flag 参数到 URL
+        if '?' in url:
+            url += '&flag=clash'
+        else:
+            url += '?flag=clash'
+        
+        response = requests.get(url, headers=headers, timeout=30)
         
         if response.ok:
             headers = {}
@@ -157,6 +161,7 @@ def mask_sensitive_url(url):
     except:
         return "masked_url"
 
+
 def mask_params(params):
     """对参数进行脱敏处理"""
     try:
@@ -232,21 +237,26 @@ def convert_subscribe(subscribe_dict):
             if not original_url:
                 print(f"Warning: Could not extract URL from params for {filename}")
                 continue
-                
+            
             # 检查订阅源是否可访问
             print(f"\nChecking subscription source...")
             try:
-                source_response = requests.get(
-                    original_url,
-                    headers={
-                        'User-Agent': 'clash-verge/v1.0',
-                        'Accept': '*/*',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'Cache-Control': 'no-cache',
-                        'Connection': 'keep-alive'
-                    },
-                    timeout=30
-                )
+                source_headers = {
+                    'User-Agent': 'Clash/v1.0',
+                    'Accept': '*/*',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive',
+                    'Clash-Version': 'v1.0',
+                    'Content-Type': 'application/json'
+                }
+                source_url = original_url
+                if '?' in source_url:
+                    source_url += '&flag=clash'
+                else:
+                    source_url += '?flag=clash'
+                
+                source_response = requests.get(source_url, headers=source_headers, timeout=30)
                 print(f"Source response status: {source_response.status_code}")
                 print(f"Source content length: {len(source_response.text)}")
                 print(f"Source content preview: {source_response.text[:100]}")
@@ -292,6 +302,7 @@ def convert_subscribe(subscribe_dict):
             print(f"Error processing {filename}: {str(e)}")
     
     return results
+
 
 def main():
     try:
