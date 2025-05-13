@@ -22,10 +22,8 @@ class CloudflareKV:
     def check_key_exists(self, key_name):
         """检查 KV 键是否存在"""
         try:
-            # 对键名进行 URL 编码以支持中文
-            encoded_key_name = urllib.parse.quote(key_name)
             response = requests.get(
-                f"{self.base_url}/{encoded_key_name}",
+                f"{self.base_url}/{key_name}",
                 headers=self.headers,
                 timeout=30
             )
@@ -37,23 +35,20 @@ class CloudflareKV:
     def update_config(self, key_name, content, headers=None):
         """更新 CF KV 存储"""
         try:
-            # 对键名进行 URL 编码以支持中文
-            encoded_key_name = urllib.parse.quote(key_name)
-            
             # 检查键是否已存在
-            is_update = self.check_key_exists(encoded_key_name)
+            is_update = self.check_key_exists(key_name)
             operation = "Updating" if is_update else "Creating"
             print(f"{operation} CF KV for {key_name}...")
             
             # 构建存储数据，使用文件名作为配置键
             kv_data = {
-                key_name: base64.b64encode(content.encode()).decode(),  # 使用原始文件名作为键
+                key_name: base64.b64encode(content.encode()).decode(),  # 使用文件名作为键
                 "update_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
                 "headers": headers or {}
             }
             
             response = requests.put(
-                f"{self.base_url}/{encoded_key_name}",  # 使用编码后的键名在 URL 中
+                f"{self.base_url}/{key_name}",
                 headers=self.headers,
                 json=kv_data,
                 timeout=30
@@ -222,132 +217,47 @@ def extract_url_from_params(params):
 
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
-    print("\n" + "="*50)
-    print("Detailed Subscription Conversion Process")
-    print(f"Start Time (UTC): 2025-05-13 08:29:08")
-    print("="*50)
-    
+    print("Start Subscription Conversion")
     base_url = "http://localhost:25500/sub"
     results = {}
     
     for filename, params in subscribe_dict.items():
-        print(f"\n>>> Processing subscription: {filename}")
-        print("-"*40)
+        print(f"Converting {filename}...")
         
+        # 从参数中提取原始订阅 URL
+        original_url = extract_url_from_params(params)
+        print(f"Extracted URL for {filename}: {mask_sensitive_url(original_url)}")
+        
+        if not original_url:
+            print(f"Warning: Could not extract URL from params for {filename}")
+            continue
+            
+        # 获取该订阅的响应头
+        print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
+        sub_headers = get_original_headers(original_url)
+        
+        if sub_headers:
+            print(f"Successfully got headers for {filename}")
+        else:
+            print(f"Warning: No headers received for {filename}")
+        
+        # 转换配置
+        url = f"{base_url}{params}"
         try:
-            # 1. 显示原始参数
-            print("\n1. Original Parameters:")
-            print(f"Raw params length: {len(params)}")
-            print(f"Raw params: {params[:200]}...")
-            
-            # 2. URL提取和验证
-            original_url = extract_url_from_params(params)
-            print(f"\n2. URL Extraction:")
-            print(f"Extracted URL: {mask_sensitive_url(original_url)}")
-            
-            # 3. 验证原始订阅可访问性
-            print(f"\n3. Validating Original Subscription:")
-            validate_response = requests.get(original_url, 
-                headers={
-                    'User-Agent': 'clash-verge/v1.0',
-                    'Accept': '*/*',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Cache-Control': 'no-cache',
-                    'Connection': 'keep-alive'
-                },
-                timeout=30
-            )
-            print(f"Original subscription status code: {validate_response.status_code}")
-            print(f"Original subscription content length: {len(validate_response.text)}")
-            print(f"Original subscription content preview: {validate_response.text[:100]}...")
-            
-            # 4. 获取订阅头信息
-            sub_headers = get_original_headers(original_url)
-            print(f"\n4. Subscription Headers:")
-            if sub_headers:
-                for key, value in sub_headers.items():
-                    print(f"  {key}: {value}")
-            
-            # 5. 转换配置
-            print(f"\n5. Converting Configuration:")
-            url = f"{base_url}{params}"
-            try:
-                print(f"Making request to subconverter:")
-                print(f"- Base URL: {base_url}")
-                print(f"- Full URL length: {len(url)}")
-                print(f"- Full URL: {mask_sensitive_url(url)}")
-                
-                headers = {
-                    'User-Agent': 'clash-verge/v1.0',
-                    'Accept': '*/*',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Cache-Control': 'no-cache',
-                    'Connection': 'keep-alive'
-                }
-                
-                response = requests.get(url, headers=headers, timeout=30)
-                
-                print(f"\nSubconverter Response:")
-                print(f"Status Code: {response.status_code}")
-                print("Response Headers:")
-                for key, value in response.headers.items():
-                    print(f"  {key}: {value}")
-                
-                if not response.ok:
-                    print("\n!!! Conversion Error Details !!!")
-                    print(f"Status Code: {response.status_code}")
-                    print(f"Response Headers: {dict(response.headers)}")
-                    print(f"Error Content: {response.text}")
-                    print("\nRequest Details:")
-                    print(f"URL: {mask_sensitive_url(url)}")
-                    print("Headers:")
-                    for key, value in headers.items():
-                        print(f"  {key}: {value}")
-                    print("\nOriginal Subscription Details:")
-                    print(f"URL: {mask_sensitive_url(original_url)}")
-                    print(f"Content Length: {len(validate_response.text)}")
-                    print(f"Content Preview: {validate_response.text[:200]}...")
-                    raise Exception(f"Conversion failed with status {response.status_code}: {response.text}")
-                
+            print(f"Converting configuration using URL: {mask_params(params)}")
+            response = requests.get(url, timeout=30)
+            if response.ok:
                 content = response.text
-                print(f"\nConverted Content:")
-                print(f"Length: {len(content)}")
-                print(f"Preview: {content[:200]}...")
-                
+                update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                content += f"\n\n# Updated on {update_time}\n"  # 添加updatetime时间戳
                 results[filename] = {
                     "content": content,
                     "headers": sub_headers
                 }
-                print(f"\n✓ Successfully processed {filename}")
-                
-            except requests.exceptions.RequestException as e:
-                print(f"\n!!! Network Error !!!")
-                print(f"Error Type: {type(e).__name__}")
-                print(f"Error Message: {str(e)}")
-                print(f"URL: {mask_sensitive_url(url)}")
-                raise
-                
+            else:
+                print(f"Error: converting {filename}: {response.status_code}")
         except Exception as e:
-            print(f"\n!!! Error Processing {filename} !!!")
-            print(f"Error Type: {type(e).__name__}")
-            print(f"Error Message: {str(e)}")
-            import traceback
-            print("Full Traceback:")
-            print(traceback.format_exc())
-        
-        print("\n" + "="*50)
-    
-    # 添加处理摘要
-    print("\n=== Conversion Summary ===")
-    print(f"Total subscriptions: {len(subscribe_dict)}")
-    print(f"Successfully converted: {len(results)}")
-    print(f"Failed: {len(subscribe_dict) - len(results)}")
-    if len(results) < len(subscribe_dict):
-        print("\nFailed subscriptions:")
-        for name in subscribe_dict.keys():
-            if name not in results:
-                print(f"- {name}")
-    print("="*50 + "\n")
+            print(f"Error: converting {filename}: {str(e)}")
     
     return results
 
