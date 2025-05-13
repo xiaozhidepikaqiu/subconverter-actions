@@ -191,7 +191,7 @@ def mask_params(params):
 def extract_url_from_params(params):
     """从参数中提取订阅 URL"""
     try:
-        print(f"Processing params: {mask_params(params)}")
+        print(f"Processing params: {params}")
         # 查找 "&url=" 和下一个 "&" 之间的内容
         start = params.find("&url=") + 5
         if start > 4:  # 确保找到了 "&url="
@@ -203,7 +203,7 @@ def extract_url_from_params(params):
             
             # URL 解码
             decoded_url = urllib.parse.unquote(url)
-            print(f"Decoded URL: {mask_sensitive_url(decoded_url)}")
+            print(f"Decoded URL: {decoded_url}")
             
             # 检查 URL 是否包含协议前缀
             if not decoded_url.startswith(('http://', 'https://')):
