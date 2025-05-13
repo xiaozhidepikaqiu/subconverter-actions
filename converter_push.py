@@ -131,10 +131,67 @@ def get_original_headers(url):
     return None
 
 
+def mask_sensitive_url(url):
+    """对敏感 URL 进行脱敏处理"""
+    try:
+        if not url:
+            return ""
+        # 解析 URL
+        parsed = urllib.parse.urlparse(url)
+        
+        # 获取查询参数
+        query_params = urllib.parse.parse_qs(parsed.query)
+        
+        # 处理 token 或其他敏感参数
+        for sensitive_param in ['token', 'password', 'key', 'secret']:
+            if sensitive_param in query_params:
+                value = query_params[sensitive_param][0]
+                if len(value) > 8:
+                    query_params[sensitive_param] = [f"{value[:4]}...{value[-4:]}"]
+        
+        # 重建查询字符串
+        masked_query = urllib.parse.urlencode(query_params, doseq=True)
+        
+        # 重建 URL，只显示域名和处理后的参数
+        return f"{parsed.scheme}://{parsed.netloc}/...?{masked_query[:30]}..."
+    except:
+        return "masked_url"
+
+def mask_params(params):
+    """对参数进行脱敏处理"""
+    try:
+        if not params:
+            return ""
+        # 找到 url 参数的位置
+        url_start = params.find("&url=")
+        if url_start >= 0:
+            # 保留 url= 之前的部分
+            prefix = params[:url_start + 5]
+            # 对 URL 部分进行处理
+            remaining = params[url_start + 5:]
+            url_end = remaining.find("&")
+            if url_end >= 0:
+                url_part = remaining[:url_end]
+                after_url = remaining[url_end:]
+            else:
+                url_part = remaining
+                after_url = ""
+            
+            # 解码并脱敏 URL
+            decoded_url = urllib.parse.unquote(url_part)
+            masked_url = mask_sensitive_url(decoded_url)
+            
+            # 返回处理后的参数字符串
+            return f"{prefix}{urllib.parse.quote(masked_url)}{after_url[:30]}..."
+        return f"{params[:30]}..."
+    except:
+        return "masked_params"
+
+
 def extract_url_from_params(params):
     """从参数中提取订阅 URL"""
     try:
-        print(f"Processing params: {params}")
+        print(f"Processing params: {mask_params(params)}")
         # 查找 "&url=" 和下一个 "&" 之间的内容
         start = params.find("&url=") + 5
         if start > 4:  # 确保找到了 "&url="
@@ -146,21 +203,21 @@ def extract_url_from_params(params):
             
             # URL 解码
             decoded_url = urllib.parse.unquote(url)
-            print(f"Decoded URL: {decoded_url}")
+            print(f"Decoded URL: {mask_sensitive_url(decoded_url)}")
             
-            # 检查 URL 是否包含协议前缀，如果没有则添加 https://
+            # 检查 URL 是否包含协议前缀
             if not decoded_url.startswith(('http://', 'https://')):
                 decoded_url = 'https://' + decoded_url
             
             return decoded_url
     except Exception as e:
-        print(f"Error: extracting URL from params: {str(e)}")
+        print(f"Error extracting URL from params: {str(e)}")
     return None
 
 
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
-    print("Start Subscription Sonversion")
+    print("Start Subscription Conversion")
     base_url = "http://localhost:25500/sub"
     results = {}
     
@@ -169,14 +226,14 @@ def convert_subscribe(subscribe_dict):
         
         # 从参数中提取原始订阅 URL
         original_url = extract_url_from_params(params)
-        print(f"Extracted URL for {filename}: {original_url}")
+        print(f"Extracted URL for {filename}: {mask_sensitive_url(original_url)}")
         
         if not original_url:
             print(f"Warning: Could not extract URL from params for {filename}")
             continue
             
         # 获取该订阅的响应头
-        print(f"Fetching headers for {filename} from {original_url}")
+        print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
         sub_headers = get_original_headers(original_url)
         
         if sub_headers:
@@ -187,7 +244,7 @@ def convert_subscribe(subscribe_dict):
         # 转换配置
         url = f"{base_url}{params}"
         try:
-            print(f"Converting configuration using URL: {url}")
+            print(f"Converting configuration using URL: {mask_params(params)}")
             response = requests.get(url, timeout=30)
             if response.ok:
                 content = response.text
@@ -203,7 +260,6 @@ def convert_subscribe(subscribe_dict):
             print(f"Error: converting {filename}: {str(e)}")
     
     return results
-
 
 def main():
     try:
