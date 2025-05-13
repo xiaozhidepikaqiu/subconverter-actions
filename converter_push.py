@@ -22,8 +22,10 @@ class CloudflareKV:
     def check_key_exists(self, key_name):
         """检查 KV 键是否存在"""
         try:
+            # 对键名进行 URL 编码以支持中文
+            encoded_key_name = urllib.parse.quote(key_name)
             response = requests.get(
-                f"{self.base_url}/{key_name}",
+                f"{self.base_url}/{encoded_key_name}",
                 headers=self.headers,
                 timeout=30
             )
@@ -35,20 +37,23 @@ class CloudflareKV:
     def update_config(self, key_name, content, headers=None):
         """更新 CF KV 存储"""
         try:
+            # 对键名进行 URL 编码以支持中文
+            encoded_key_name = urllib.parse.quote(key_name)
+            
             # 检查键是否已存在
-            is_update = self.check_key_exists(key_name)
+            is_update = self.check_key_exists(encoded_key_name)
             operation = "Updating" if is_update else "Creating"
             print(f"{operation} CF KV for {key_name}...")
             
             # 构建存储数据，使用文件名作为配置键
             kv_data = {
-                key_name: base64.b64encode(content.encode()).decode(),  # 使用文件名作为键
+                key_name: base64.b64encode(content.encode()).decode(),  # 使用原始文件名作为键
                 "update_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
                 "headers": headers or {}
             }
             
             response = requests.put(
-                f"{self.base_url}/{key_name}",
+                f"{self.base_url}/{encoded_key_name}",  # 使用编码后的键名在 URL 中
                 headers=self.headers,
                 json=kv_data,
                 timeout=30
@@ -222,6 +227,8 @@ def convert_subscribe(subscribe_dict):
     results = {}
     
     for filename, params in subscribe_dict.items():
+        # URL 编码文件名以支持中文
+        encoded_filename = urllib.parse.quote(filename)
         print(f"Converting {filename}...")
         
         try:
@@ -248,18 +255,19 @@ def convert_subscribe(subscribe_dict):
                 print(f"Converting configuration using URL: {mask_params(params)}")
                 response = requests.get(url, timeout=30)
                 
-                # 打印详细的响应信息以帮助调试
                 print(f"Response status: {response.status_code}")
+                if not response.ok:
+                    print(f"Error response content: {response.text[:200]}")
                 
                 if response.ok:
                     content = response.text
                     if not content:
                         raise Exception("Empty response content")
                     
-                    # 添加更新时间
                     update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
                     content += f"\n\n# Updated on {update_time}\n"
                     
+                    # 使用原始文件名（包含中文）作为键
                     results[filename] = {
                         "content": content,
                         "headers": sub_headers
@@ -267,7 +275,6 @@ def convert_subscribe(subscribe_dict):
                     print(f"Successfully converted configuration for {filename}")
                 else:
                     print(f"Error: converting {filename}: {response.status_code}")
-                    print(f"Error response content: {response.text[:200]}")
                     
             except requests.exceptions.RequestException as e:
                 print(f"Network error while converting {filename}: {str(e)}")
