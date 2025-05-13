@@ -33,12 +33,12 @@ class CloudflareKV:
 
     
     def update_config(self, key_name, content, headers=None):
-        """更新 Cloudflare KV 存储"""
+        """更新 CF KV 存储"""
         try:
             # 检查键是否已存在
             is_update = self.check_key_exists(key_name)
             operation = "Updating" if is_update else "Creating"
-            print(f"{operation} Cloudflare KV for {key_name}...")
+            print(f"{operation} CF KV for {key_name}...")
             
             # 构建存储数据，使用文件名作为配置键
             kv_data = {
@@ -57,11 +57,11 @@ class CloudflareKV:
             if not response.ok:
                 raise Exception(f"API request failed: {response.status_code} - {response.text}")
             
-            print(f"Successfully {operation.lower()}d Cloudflare KV for {key_name}")
+            print(f"Successfully {operation.lower()}d CF KV for {key_name}")
             return True
             
         except Exception as e:
-            print(f"Error {operation.lower()}ing KV for {key_name}: {str(e)}")
+            print(f"Error: {operation.lower()}ing CF KV for {key_name}: {str(e)}")
             return False
 
 
@@ -154,13 +154,13 @@ def extract_url_from_params(params):
             
             return decoded_url
     except Exception as e:
-        print(f"Error extracting URL from params: {str(e)}")
+        print(f"Error: extracting URL from params: {str(e)}")
     return None
 
 
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
-    print("Converting subscription...")
+    print("Start Subscription Sonversion")
     base_url = "http://localhost:25500/sub"
     results = {}
     
@@ -198,16 +198,16 @@ def convert_subscribe(subscribe_dict):
                     "headers": sub_headers
                 }
             else:
-                print(f"Error converting {filename}: {response.status_code}")
+                print(f"Error: converting {filename}: {response.status_code}")
         except Exception as e:
-            print(f"Error converting {filename}: {str(e)}")
+            print(f"Error: converting {filename}: {str(e)}")
     
     return results
 
 
 def main():
     try:
-        print("\n=== Starting config update process ===")
+        print("\n=== Start running converter_push.py ===")
         print(f"Current time (UTC): {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
 
         # 检查环境变量
@@ -231,7 +231,7 @@ def main():
         # 转换订阅
         results = convert_subscribe(subscribe_dict)
         if not results:
-            raise Exception("No configurations were converted successfully")
+            raise Exception("Error: configuration conversion failed")
 
         # 初始化 Cloudflare KV 客户端
         cf_kv = CloudflareKV(
@@ -246,10 +246,10 @@ def main():
             if cf_kv.update_config(filename, data["content"], data["headers"]):
                 success_count += 1
             else:
-                print(f"Failed to update {filename} to Cloudflare KV")
+                print(f"Failed to update {filename} to CF KV")
 
         if success_count == 0:
-            raise Exception("No configurations were successfully updated to KV")
+            raise Exception("Error: the configuration update to kv failed")
         else:
             print(f"\n=== Successfully updated {success_count} configurations to KV ===")
 
