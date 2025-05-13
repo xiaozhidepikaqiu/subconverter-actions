@@ -47,7 +47,3 @@
 
 
 如果切换subconverter版本为官方版（目前还不支持Hysteria2 until 20240116），需要更改`UpdateGist.yml`中的docker，或注释掉docker用下载的subconverter文件，注意架构。
-
-## 其他
-
-推荐个[便宜大碗的t](https://pp.hnekoo.top/#/register?code=i8x7SbRK)，包年15r、或不限时1TB25r，还日常打8折，用Hysteria2协议速度杠杠的。
