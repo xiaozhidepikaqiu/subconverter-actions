@@ -25,11 +25,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y curl
 
-      # 测试直接访问（预期会失败）
+      # 测试直接访问
       - name: Test Direct Access
         run: |
           echo "Testing direct access..."
-          curl -I https://xn--cp3a08l.com/api/v1/client/subscribe?token=49cc907209a39bdcac4d26a28399f058 || echo "Direct access failed as expected"
+          curl -v https://xn--cp3a08l.com/api/v1/client/subscribe?token=49cc907209a39bdcac4d26a28399f058
 
       # 安装并配置 trojan
       - name: Setup Trojan
@@ -37,6 +37,12 @@ jobs:
           # 下载 trojan
           wget https://github.com/trojan-gfw/trojan/releases/download/v1.16.0/trojan-1.16.0-linux-amd64.tar.xz
           tar xf trojan-1.16.0-linux-amd64.tar.xz
+          
+          # 查看解压后的文件结构
+          ls -la
+          
+          # 进入 trojan 目录
+          cd trojan
           
           # 创建配置文件
           cat > config.json << EOF
@@ -47,6 +53,7 @@ jobs:
               "remote_addr": "cn1.cdn.xfltd-cdn.top",
               "remote_port": 12001,
               "password": ["a984eec2-6f01-40e9-8a45-b17ca16d696a"],
+              "log_level": 0,
               "ssl": {
                   "verify": false,
                   "verify_hostname": false,
@@ -54,6 +61,10 @@ jobs:
               }
           }
           EOF
+          
+          # 显示 trojan 版本和配置
+          ./trojan --version
+          cat config.json
           
           # 启动 trojan
           ./trojan -c config.json &
@@ -63,12 +74,14 @@ jobs:
       - name: Test Proxy Access
         run: |
           echo "Testing access through proxy..."
-          # 使用 curl 通过 socks5 代理访问
-          curl -x socks5h://127.0.0.1:1080 -I https://xn--cp3a08l.com/api/v1/client/subscribe?token=49cc907209a39bdcac4d26a28399f058
+          # 使用 curl 通过 socks5 代理访问，添加更多的调试信息
+          curl -v -x socks5h://127.0.0.1:1080 https://xn--cp3a08l.com/api/v1/client/subscribe?token=49cc907209a39bdcac4d26a28399f058
           
-          # 也测试访问其他网站
-          echo "Testing access to other sites through proxy..."
-          curl -x socks5h://127.0.0.1:1080 -I https://www.google.com
+          # 检查 trojan 是否在运行
+          ps aux | grep trojan
+          
+          # 检查端口是否在监听
+          netstat -tulpn | grep 1080
 
 
       # 新增：检查网络环境步骤
