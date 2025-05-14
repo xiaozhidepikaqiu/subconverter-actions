@@ -7,7 +7,7 @@ on:
 
 jobs:
   run-subconverter:
-    runs-on: windows-latest  # 改为 windows-latest
+    runs-on: ubuntu-latest
     
     steps:
     - name: Checkout Repository
@@ -16,58 +16,55 @@ jobs:
     - name: Download and Setup Subconverter
       env:
         PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
-      shell: pwsh  # 使用 PowerShell
       run: |
-        Write-Host "Downloading subconverter..."
-        # 获取下载 URL
-        $headers = @{
-          "Accept" = "application/vnd.github+json"
-          "Authorization" = "Bearer $env:PERSONAL_TOKEN"
-          "X-GitHub-Api-Version" = "2022-11-28"
-        }
+        echo "Downloading subconverter..."
+        # 先获取下载 URL
+        DOWNLOAD_URL=$(curl -L \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer $PERSONAL_TOKEN" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "https://api.github.com/repos/asdlokj1qpi233/subconverter/releases/latest" | \
+          grep "browser_download_url.*linux64.tar.gz" | \
+          cut -d '"' -f 4)
         
-        $response = Invoke-RestMethod -Uri "https://api.github.com/repos/asdlokj1qpi233/subconverter/releases/latest" -Headers $headers
-        $downloadUrl = $response.assets | Where-Object { $_.name -like "*windows64.zip" } | Select-Object -ExpandProperty browser_download_url
+        echo "Download URL: $DOWNLOAD_URL"
         
-        Write-Host "Download URL: $downloadUrl"
-        
-        if (-not $downloadUrl) {
-          Write-Host "Error: Could not get download URL"
+        if [ -z "$DOWNLOAD_URL" ]; then
+          echo "Error: Could not get download URL"
           exit 1
-        }
+        fi
         
         # 下载文件
-        Invoke-WebRequest -Uri $downloadUrl -OutFile "subconverter_windows64.zip"
+        curl -L -o subconverter_linux64.tar.gz "$DOWNLOAD_URL"
         
-        Write-Host "Extracting subconverter..."
-        Expand-Archive -Path "subconverter_windows64.zip" -DestinationPath "subconverter"
+        echo "Extracting subconverter..."
+        tar xzf subconverter_linux64.tar.gz
+        chmod +x subconverter/subconverter
         
-        Write-Host "Starting subconverter in background with logging..."
+        echo "Starting subconverter in background with logging..."
         cd subconverter
         # 创建日志目录
-        New-Item -ItemType Directory -Force -Path "logs"
+        mkdir -p logs
         
-        # 启动 subconverter（Windows 方式）
-        Start-Process -FilePath ".\subconverter.exe" -ArgumentList "-f", "--skip-cert-verify", "--cache", "--log-level", "verbose" -RedirectStandardOutput "logs\subconverter.log" -RedirectStandardError "logs\subconverter_error.log"
+        # 使用新的启动参数启动 subconverter
+        ./subconverter -f --skip-cert-verify --cache --log-level verbose > logs/subconverter.log 2>&1 &
         
-        Write-Host "Waiting for subconverter to start..."
-        Start-Sleep -Seconds 10
+        echo "Waiting for subconverter to start..."
+        sleep 10
         
         # 显示初始日志
-        Write-Host "=== Initial subconverter log content ==="
-        Get-Content -Tail 50 "logs\subconverter.log"
+        echo "=== Initial subconverter log content ==="
+        tail -n 50 logs/subconverter.log
         
         # 检查进程
-        $process = Get-Process subconverter -ErrorAction SilentlyContinue
-        if ($process) {
-          Write-Host "✅ Subconverter is running successfully"
-          $process | Select-Object Id, ProcessName, CPU, WorkingSet
-        } else {
-          Write-Host "❌ ERROR: Subconverter failed to start"
-          Get-Content "logs\subconverter.log"
-          Get-Content "logs\subconverter_error.log"
+        if pgrep subconverter > /dev/null; then
+          echo "✅ Subconverter is running successfully"
+          ps aux | grep subconverter | grep -v grep
+        else
+          echo "❌ ERROR: Subconverter failed to start"
+          cat logs/subconverter.log
           exit 1
-        }
+        fi
 
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -85,22 +82,20 @@ jobs:
         CF_KV_ID: ${{ secrets.CF_KV_ID }}
         CF_ACCOUNT_API_TOKEN: ${{ secrets.CF_ACCOUNT_API_TOKEN }}
         CONVERT_PARAM: ${{ secrets.CONVERT_PARAM }}
-      shell: pwsh  # 使用 PowerShell
       run: |
-        Write-Host "Starting conversion process..."
+        echo "Starting conversion process..."
         python converter_push.py
         
-        Write-Host "=== Final subconverter logs ==="
-        Get-Content -Tail 100 "subconverter\logs\subconverter.log"
+        echo "=== Final subconverter logs ==="
+        tail -n 100 subconverter/logs/subconverter.log
         
         # 检查最终状态
-        $process = Get-Process subconverter -ErrorAction SilentlyContinue
-        if ($process) {
-          Write-Host "✅ Subconverter is still running"
-          $process | Select-Object Id, ProcessName, CPU, WorkingSet
-        } else {
-          Write-Host "⚠️ WARNING: Subconverter process has ended"
-        }
+        if pgrep subconverter > /dev/null; then
+          echo "✅ Subconverter is still running"
+          ps aux | grep subconverter | grep -v grep
+        else
+          echo "⚠️ WARNING: Subconverter process has ended"
+        fi
 
     - name: Upload Subconverter Logs
       if: always()
