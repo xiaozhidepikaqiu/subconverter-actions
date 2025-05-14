@@ -273,7 +273,6 @@ def convert_subscribe(subscribe_dict):
                     timeout=30,
                     verify=verify,
                     auth=auth,
-                    timeout=30,
                 )
             except Exception as e:
                 print(f"Proxy conversion failed: {str(e)}")
