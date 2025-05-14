@@ -1,4 +1,4 @@
-name: buildEnv_runPython
+name: Subconverter TO CF KV
 
 on:
   schedule:
@@ -26,20 +26,25 @@ jobs:
         
         echo "Starting subconverter in background with logging..."
         cd subconverter
-        # 在后台运行 subconverter 并将输出重定向到日志文件
-        ./subconverter -f 2>&1 | tee subconverter.log &
+        # 创建日志目录
+        mkdir -p logs
+        
+        # 启动 subconverter 并记录日志
+        ./subconverter -f > logs/subconverter.log 2>&1 &
+        
         echo "Waiting for subconverter to start..."
         sleep 5
         
-        # 显示日志内容
-        echo "Initial subconverter log content:"
-        cat subconverter.log
+        # 显示初始日志
+        echo "=== Initial subconverter log content ==="
+        tail -n 50 logs/subconverter.log
         
-        # 检查 subconverter 是否正在运行
+        # 检查进程
         if pgrep subconverter > /dev/null; then
-          echo "Subconverter is running successfully"
+          echo "✅ Subconverter is running successfully"
         else
-          echo "ERROR: Subconverter failed to start"
+          echo "❌ ERROR: Subconverter failed to start"
+          cat logs/subconverter.log
           exit 1
         fi
 
@@ -63,19 +68,20 @@ jobs:
         echo "Starting conversion process..."
         python converter_push.py
         
-        echo "Checking final subconverter logs..."
-        cat subconverter/subconverter.log
+        echo "=== Final subconverter logs ==="
+        tail -n 100 subconverter/logs/subconverter.log
         
-        echo "Checking subconverter process status..."
+        # 检查最终状态
         if pgrep subconverter > /dev/null; then
-          echo "Subconverter is still running"
+          echo "✅ Subconverter is still running"
         else
-          echo "WARNING: Subconverter process has ended"
+          echo "⚠️ WARNING: Subconverter process has ended"
         fi
 
     - name: Upload Subconverter Logs
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # 更新到 v4 版本
       with:
         name: subconverter-logs
-        path: subconverter/subconverter.log
+        path: subconverter/logs/
+        retention-days: 5  # 设置保留时间为5天
