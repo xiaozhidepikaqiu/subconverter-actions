@@ -220,25 +220,6 @@ def convert_subscribe(subscribe_dict):
     print("Start Subscription Conversion")
     base_url = "http://localhost:25500/sub"
     results = {}
-
-    # 设置代理列表 - 使用 trojan 节点
-    server = "cn1.cdn.xfltd-cdn.top"
-    port = "12001"
-    password = "a984eec2-6f01-40e9-8a45-b17ca16d696a"
-    
-    # 构建 socks5 代理字符串
-    proxy_url = f"socks5://{password}@{server}:{port}"
-    # 或者使用 http 代理字符串
-    # proxy_url = f"http://{password}@{server}:{port}"
-    
-    proxies = {
-        'http': proxy_url,
-        'https': proxy_url
-    }
-    
-    # 设置 requests 的 verify 和 auth 参数
-    verify = False  # 忽略 SSL 证书验证
-    auth = (password, password)  # 设置认证信息
     
     for filename, params in subscribe_dict.items():
         print(f"Converting {filename}...")
@@ -251,94 +232,30 @@ def convert_subscribe(subscribe_dict):
             print(f"Warning: Could not extract URL from params for {filename}")
             continue
             
-        # 首先尝试使用代理获取订阅内容
-        print(f"Fetching subscription content with proxy for {filename}")
-        try:
-            response = requests.get(
-                original_url,
-                headers={
-                    'User-Agent': 'clash-verge/v1.0',
-                    'Accept': '*/*',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Cache-Control': 'no-cache',
-                    'Connection': 'keep-alive'
-                },
-                proxies=proxies,
-                timeout=30,
-                verify=False
-            )
-            if response.ok:
-                sub_content = response.text
-                print(f"Successfully got subscription content for {filename}")
-            else:
-                print(f"Failed to get subscription content with proxy: {response.status_code}")
-                sub_content = None
-        except Exception as e:
-            print(f"Error getting subscription content with proxy: {str(e)}")
-            sub_content = None
-            
-        # 如果代理获取失败，尝试直接连接
-        if not sub_content:
-            print(f"Trying direct connection for {filename}")
-            try:
-                response = requests.get(original_url, timeout=30)
-                if response.ok:
-                    sub_content = response.text
-                    print(f"Successfully got subscription content with direct connection")
-                else:
-                    print(f"Failed to get subscription content: {response.status_code}")
-                    continue
-            except Exception as e:
-                print(f"Error getting subscription content: {str(e)}")
-                continue
-        
-        # 获取响应头
-        print(f"Fetching headers for {filename}")
+        # 获取该订阅的响应头
+        print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
         sub_headers = get_original_headers(original_url)
+        
         if sub_headers:
             print(f"Successfully got headers for {filename}")
+        else:
+            print(f"Warning: No headers received for {filename}")
         
         # 转换配置
         url = f"{base_url}{params}"
         try:
             print(f"Converting configuration using URL: {mask_params(params)}")
-            
-            # 首先尝试使用代理进行转换
-            print("Attempting conversion with proxy...")
-            try:
-                response = requests.get(
-                    url,
-                    proxies=proxies,
-                    timeout=30,
-                    verify=False
-                )
-            except Exception as e:
-                print(f"Proxy conversion failed: {str(e)}")
-                response = None
-            
-            # 如果代理转换失败，尝试直接连接
-            if not response or not response.ok:
-                print("Proxy conversion failed, trying direct connection...")
-                response = requests.get(url, timeout=30)
-            
+            response = requests.get(url, timeout=30)
             if response.ok:
                 content = response.text
-                if 'proxies:' in content:  # 验证返回内容是否是有效的配置
-                    update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                    content += f"\n\n# Updated on {update_time}\n"
-                    results[filename] = {
-                        "content": content,
-                        "headers": sub_headers
-                    }
-                    print(f"Successfully converted {filename}")
-                else:
-                    print(f"Error: Invalid configuration format for {filename}")
-                    print(f"Response preview: {content[:200]}")
+                update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                content += f"\n\n# Updated on {update_time}\n"  # 添加updatetime时间戳
+                results[filename] = {
+                    "content": content,
+                    "headers": sub_headers
+                }
             else:
                 print(f"Error: converting {filename}: {response.status_code}")
-                if response.text:
-                    print(f"Error details: {response.text[:200]}")
-                
         except Exception as e:
             print(f"Error: converting {filename}: {str(e)}")
     
