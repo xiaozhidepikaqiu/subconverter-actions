@@ -1,106 +1,146 @@
-name: Subconverter TO CF KV
+name: buildEnv_runPython
+
 
 on:
   schedule:
-    - cron: '0 0 */3 * *'  # 每3天的午夜（UTC时间）触发
+    - cron: '0 0 * * *'  # 每天的第0小时运行
+
+    
   workflow_dispatch:  # 支持手动触发
 
+  
+  # push:
+  #   branches:
+  #     - main  # 每次push到main分支时触发
+
+
 jobs:
-  run-subconverter:
+  buildEnv_runPython:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
 
-    - name: Download and Setup Subconverter
-      env:
-        PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
-      run: |
-        echo "Downloading subconverter..."
-        # 先获取下载 URL
-        DOWNLOAD_URL=$(curl -L \
-          -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer $PERSONAL_TOKEN" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          "https://api.github.com/repos/asdlokj1qpi233/subconverter/releases/latest" | \
-          grep "browser_download_url.*linux64.tar.gz" | \
-          cut -d '"' -f 4)
-        
-        echo "Download URL: $DOWNLOAD_URL"
-        
-        if [ -z "$DOWNLOAD_URL" ]; then
-          echo "Error: Could not get download URL"
-          exit 1
-        fi
-        
-        # 下载文件
-        curl -L -o subconverter_linux64.tar.gz "$DOWNLOAD_URL"
-        
-        echo "Extracting subconverter..."
-        tar xzf subconverter_linux64.tar.gz
-        chmod +x subconverter/subconverter
-        
-        echo "Starting subconverter in background with logging..."
-        cd subconverter
-        # 创建日志目录
-        mkdir -p logs
-        
-        # 使用新的启动参数启动 subconverter
-        ./subconverter -f --skip-cert-verify --cache --log-level verbose > logs/subconverter.log 2>&1 &
-        
-        echo "Waiting for subconverter to start..."
-        sleep 10
-        
-        # 显示初始日志
-        echo "=== Initial subconverter log content ==="
-        tail -n 50 logs/subconverter.log
-        
-        # 检查进程
-        if pgrep subconverter > /dev/null; then
-          echo "✅ Subconverter is running successfully"
-          ps aux | grep subconverter | grep -v grep
-        else
-          echo "❌ ERROR: Subconverter failed to start"
-          cat logs/subconverter.log
-          exit 1
-        fi
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      # - name: Install curl
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y curl
 
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install requests
+      # # 测试直接访问
+      # - name: Test Direct Access
+      #   run: |
+      #     echo "Testing direct access..."
+      #     curl -v https://xn--cp3a08l.com/api/v1/client/subscribe?token=49cc907209a39bdcac4d26a28399f058
 
-    - name: Run Conversion Script
-      env:
-        CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-        CF_KV_ID: ${{ secrets.CF_KV_ID }}
-        CF_ACCOUNT_API_TOKEN: ${{ secrets.CF_ACCOUNT_API_TOKEN }}
-        CONVERT_PARAM: ${{ secrets.CONVERT_PARAM }}
-      run: |
-        echo "Starting conversion process..."
-        python converter_push.py
+      # # 安装并配置 trojan
+      # - name: Setup Trojan
+      #   run: |
+      #     # 下载 trojan
+      #     wget https://github.com/trojan-gfw/trojan/releases/download/v1.16.0/trojan-1.16.0-linux-amd64.tar.xz
+      #     tar xf trojan-1.16.0-linux-amd64.tar.xz
+          
+      #     # 查看解压后的文件结构
+      #     ls -la
+          
+      #     # 进入 trojan 目录
+      #     cd trojan
+          
+      #     # 创建配置文件
+      #     cat > config.json << EOF
+      #     {
+      #         "run_type": "client",
+      #         "local_addr": "127.0.0.1",
+      #         "local_port": 1080,
+      #         "remote_addr": "cn1.cdn.xfltd-cdn.top",
+      #         "remote_port": 12001,
+      #         "password": ["a984eec2-6f01-40e9-8a45-b17ca16d696a"],
+      #         "log_level": 0,
+      #         "ssl": {
+      #             "verify": false,
+      #             "verify_hostname": false,
+      #             "sni": "cdn.alibaba.com"
+      #         }
+      #     }
+      #     EOF
+          
+      #     # 显示 trojan 版本和配置
+      #     ./trojan --version
+      #     cat config.json
+          
+      #     # 启动 trojan
+      #     ./trojan -c config.json &
+      #     sleep 5  # 等待trojan启动
+
+      # # 测试通过代理访问
+      # - name: Test Proxy Access
+      #   run: |
+      #     echo "Testing access through proxy..."
+      #     # 使用 curl 通过 socks5 代理访问，添加更多的调试信息
+      #     curl -v -x socks5h://127.0.0.1:1080 https://xn--cp3a08l.com/api/v1/client/subscribe?token=49cc907209a39bdcac4d26a28399f058
+          
+      #     # 检查 trojan 是否在运行
+      #     ps aux | grep trojan
+          
+      #     # 检查端口是否在监听
+      #     netstat -tulpn | grep 1080
+
+
+      # # 新增：检查网络环境步骤
+      # - name: Check Network Environment
+      #   run: |
+      #     echo "============= Network Environment Check ============="
+      #     echo "Current Time (UTC): $(date -u '+%Y-%m-%D %H:%M:%S')"
+          
+      #     echo -e "\n=== Current IP Address ==="
+      #     curl -s ip.sb
+          
+      #     echo -e "\n=== IP Location Details ==="
+      #     curl -s ipinfo.io | jq .
+          
+      #     echo -e "\n=== IP Geographic Info ==="
+      #     curl -s http://ip-api.com/json | jq .
+
+          
+      #     # echo -e "\n=== Network Speed Test ==="
+      #     # curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python -
+
+   
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pyyaml
+
+
+      - name: Extract and run subconverter
+        env:
+          PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}  # 设置环境变量
+        run: |
+          curl -L -o subconverter_linux64.tar.gz $(curl -L -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $PERSONAL_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/asdlokj1qpi233/subconverter/releases/latest | grep "browser_download_url" | grep "linux64[.]tar" | cut -d '"' -f 4)
+          tar xzf subconverter_linux64.tar.gz
+          chmod +x subconverter/subconverter
+          nohup subconverter/subconverter &
+
+
+      - name: runrun python
+        env:
+
         
-        echo "=== Final subconverter logs ==="
-        tail -n 100 subconverter/logs/subconverter.log
-        
-        # 检查最终状态
-        if pgrep subconverter > /dev/null; then
-          echo "✅ Subconverter is still running"
-          ps aux | grep subconverter | grep -v grep
-        else
-          echo "⚠️ WARNING: Subconverter process has ended"
-        fi
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_ACCOUNT_API_TOKEN: ${{ secrets.CF_ACCOUNT_API_TOKEN }}
+          CF_KV_ID: ${{ secrets.CF_KV_ID }}
+          CONVERT_PARAM: ${{ secrets.CONVERT_PARAM }}
+          # PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
+          # GIST_ID: ${{ secrets.GIST_ID }}
 
-    - name: Upload Subconverter Logs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: subconverter-logs
-        path: subconverter/logs/
-        retention-days: 5
+
+        run: python converter_push.py
+
