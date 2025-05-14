@@ -46,11 +46,11 @@ jobs:
         # 创建日志目录
         mkdir -p logs
         
-        # 启动 subconverter 并记录日志
-        ./subconverter -f > logs/subconverter.log 2>&1 &
+        # 使用新的启动参数启动 subconverter
+        ./subconverter -f --skip-cert-verify --cache --log-level verbose > logs/subconverter.log 2>&1 &
         
         echo "Waiting for subconverter to start..."
-        sleep 5
+        sleep 10
         
         # 显示初始日志
         echo "=== Initial subconverter log content ==="
@@ -59,6 +59,7 @@ jobs:
         # 检查进程
         if pgrep subconverter > /dev/null; then
           echo "✅ Subconverter is running successfully"
+          ps aux | grep subconverter | grep -v grep
         else
           echo "❌ ERROR: Subconverter failed to start"
           cat logs/subconverter.log
@@ -91,6 +92,7 @@ jobs:
         # 检查最终状态
         if pgrep subconverter > /dev/null; then
           echo "✅ Subconverter is still running"
+          ps aux | grep subconverter | grep -v grep
         else
           echo "⚠️ WARNING: Subconverter process has ended"
         fi
