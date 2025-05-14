@@ -18,7 +18,24 @@ jobs:
         PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
       run: |
         echo "Downloading subconverter..."
-        curl -L -o subconverter_linux64.tar.gz $(curl -L -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $PERSONAL_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/asdlokj1qpi23/subconverter/releases/latest | grep "browser_download_url.*linux64.tar.gz" | cut -d '"' -f 4)
+        # 先获取下载 URL
+        DOWNLOAD_URL=$(curl -L \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer $PERSONAL_TOKEN" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "https://api.github.com/repos/asdlokj1qpi23/subconverter/releases/latest" | \
+          grep "browser_download_url.*linux64.tar.gz" | \
+          cut -d '"' -f 4)
+        
+        echo "Download URL: $DOWNLOAD_URL"
+        
+        if [ -z "$DOWNLOAD_URL" ]; then
+          echo "Error: Could not get download URL"
+          exit 1
+        fi
+        
+        # 下载文件
+        curl -L -o subconverter_linux64.tar.gz "$DOWNLOAD_URL"
         
         echo "Extracting subconverter..."
         tar xzf subconverter_linux64.tar.gz
@@ -80,8 +97,8 @@ jobs:
 
     - name: Upload Subconverter Logs
       if: always()
-      uses: actions/upload-artifact@v4  # 更新到 v4 版本
+      uses: actions/upload-artifact@v4
       with:
         name: subconverter-logs
         path: subconverter/logs/
-        retention-days: 5  # 设置保留时间为5天
+        retention-days: 5
