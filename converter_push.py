@@ -215,6 +215,35 @@ def extract_url_from_params(params):
     return None
 
 
+def get_subscription_content(url, proxies=None):
+    """获取订阅内容并解码"""
+    try:
+        headers = get_subscription_headers()
+        response = requests.get(
+            url, 
+            headers=headers, 
+            timeout=30,
+            proxies=proxies,
+            verify=False if proxies else True
+        )
+        
+        if response.ok:
+            content = response.text.strip()
+            try:
+                # 尝试 base64 解码
+                decoded_content = base64.b64decode(content).decode('utf-8')
+                return decoded_content
+            except:
+                # 如果解码失败，返回原始内容
+                return content
+        else:
+            print(f"Error getting subscription content: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"Error in get_subscription_content: {str(e)}")
+        return None
+
+
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
     print("Start Subscription Conversion")
@@ -224,10 +253,37 @@ def convert_subscribe(subscribe_dict):
     # 初始化代理列表
     proxy_list = []
     
+    # 首先尝试从成功的订阅获取代理
     for filename, params in subscribe_dict.items():
-        print(f"Converting {filename}...")
+        original_url = extract_url_from_params(params)
+        if not original_url:
+            continue
+            
+        content = get_subscription_content(original_url)
+        if content and ('vmess://' in content or 'trojan://' in content or 'ss://' in content):
+            print(f"Attempting to extract proxies from {filename}")
+            for line in content.splitlines():
+                line = line.strip()
+                try:
+                    if line.startswith('vmess://'):
+                        config = json.loads(base64.b64decode(line[8:]).decode('utf-8'))
+                        proxy = f"socks5://{config['add']}:{config['port']}"
+                        if proxy not in proxy_list:
+                            proxy_list.append(proxy)
+                            print(f"Added proxy from {filename}")
+                    elif line.startswith(('trojan://', 'ss://')):
+                        server = line.split('@')[1].split('?')[0].split('#')[0]
+                        proxy = f"socks5://{server}"
+                        if proxy not in proxy_list:
+                            proxy_list.append(proxy)
+                            print(f"Added proxy from {filename}")
+                except Exception as e:
+                    continue
+
+    # 现在处理每个订阅
+    for filename, params in subscribe_dict.items():
+        print(f"\nConverting {filename}...")
         
-        # 从参数中提取原始订阅 URL
         original_url = extract_url_from_params(params)
         print(f"Extracted URL for {filename}: {mask_sensitive_url(original_url)}")
         
@@ -235,108 +291,46 @@ def convert_subscribe(subscribe_dict):
             print(f"Warning: Could not extract URL from params for {filename}")
             continue
             
-        # 获取该订阅的响应头
         print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
         
-        # 尝试不同的方式获取订阅内容
-        max_retries = 3
+        # 获取订阅内容
+        sub_content = None
         sub_headers = None
         
-        for attempt in range(max_retries):
-            try:
-                # 第一次尝试直接访问
-                if attempt == 0:
-                    print(f"Attempt {attempt + 1}: Direct connection")
-                    sub_headers = get_original_headers(original_url)
-                
-                # 第二次尝试使用已有代理
-                elif attempt == 1 and proxy_list:
-                    print(f"Attempt {attempt + 1}: Using existing proxy")
-                    for proxy in proxy_list:
-                        try:
-                            proxies = {
-                                'http': proxy,
-                                'https': proxy
-                            }
-                            print(f"Trying proxy: {proxy}")
-                            sub_headers = get_original_headers(original_url, proxies=proxies)
-                            if sub_headers:
-                                print(f"Proxy {proxy} successful")
-                                break
-                        except Exception as e:
-                            print(f"Proxy {proxy} failed: {str(e)}")
-                            continue
-                
-                # 第三次尝试从当前URL获取新代理
-                else:
-                    print(f"Attempt {attempt + 1}: Trying to get new proxy from current subscription")
-                    try:
-                        headers = get_subscription_headers()
-                        response = requests.get(original_url, headers=headers, timeout=30)
-                        if response.ok:
-                            content = response.text
-                            try:
-                                content = base64.b64decode(content.strip()).decode('utf-8')
-                            except:
-                                pass
-                            
-                            # 查找可用代理
-                            for line in content.splitlines():
-                                if line.startswith(('vmess://', 'trojan://', 'ss://')):
-                                    try:
-                                        proxy = None
-                                        if line.startswith('vmess://'):
-                                            b64 = line[8:]
-                                            config = json.loads(base64.b64decode(b64).decode('utf-8'))
-                                            proxy = f"socks5://{config['add']}:{config['port']}"
-                                        else:
-                                            server = line.split('@')[1].split('?')[0]
-                                            proxy = f"socks5://{server}"
-                                        
-                                        if proxy and proxy not in proxy_list:
-                                            proxies = {
-                                                'http': proxy,
-                                                'https': proxy
-                                            }
-                                            print(f"Testing new proxy: {proxy}")
-                                            # 测试代理
-                                            test_response = requests.get(
-                                                "http://www.gstatic.com/generate_204",
-                                                proxies=proxies,
-                                                timeout=5,
-                                                verify=False
-                                            )
-                                            if test_response.status_code == 204:
-                                                print(f"New proxy {proxy} is working")
-                                                proxy_list.append(proxy)
-                                                sub_headers = get_original_headers(original_url, proxies=proxies)
-                                                if sub_headers:
-                                                    print(f"Successfully got headers using new proxy")
-                                                    break
-                                    except Exception as e:
-                                        print(f"Error testing proxy: {str(e)}")
-                                        continue
-                    except Exception as e:
-                        print(f"Error getting new proxy: {str(e)}")
-
-                if sub_headers:
-                    print(f"Successfully got headers for {filename}")
-                    break
-                else:
-                    print(f"Warning: No headers received for {filename} on attempt {attempt + 1}")
-
-            except Exception as e:
-                print(f"Error on attempt {attempt + 1}: {str(e)}")
-                if attempt == max_retries - 1:
-                    print(f"All attempts failed for {filename}")
+        # 首先尝试直接连接
+        print("Attempting direct connection...")
+        sub_headers = get_original_headers(original_url)
+        sub_content = get_subscription_content(original_url)
+        
+        # 如果直接连接失败，尝试使用代理
+        if not sub_content and proxy_list:
+            print("Direct connection failed, trying proxies...")
+            for proxy in proxy_list:
+                try:
+                    proxies = {
+                        'http': proxy,
+                        'https': proxy
+                    }
+                    print(f"Trying proxy: {proxy}")
+                    sub_headers = get_original_headers(original_url, proxies)
+                    sub_content = get_subscription_content(original_url, proxies)
+                    if sub_content:
+                        print(f"Successfully got content using proxy {proxy}")
+                        break
+                except Exception as e:
+                    print(f"Proxy {proxy} failed: {str(e)}")
                     continue
         
+        if not sub_content:
+            print(f"Failed to get subscription content for {filename}")
+            continue
+            
         # 转换配置
         url = f"{base_url}{params}"
         try:
             print(f"Converting configuration using URL: {mask_params(params)}")
             
-            # 使用找到的可用代理进行转换
+            # 尝试使用代理进行转换
             response = None
             if proxy_list:
                 for proxy in proxy_list:
@@ -347,9 +341,11 @@ def convert_subscribe(subscribe_dict):
                         }
                         print(f"Trying conversion with proxy: {proxy}")
                         response = requests.get(url, timeout=30, proxies=proxies, verify=False)
-                        if response.ok:
+                        if response.ok and 'proxies:' in response.text:
                             print(f"Conversion successful with proxy {proxy}")
                             break
+                        else:
+                            print(f"Invalid response with proxy {proxy}")
                     except Exception as e:
                         print(f"Conversion failed with proxy {proxy}: {str(e)}")
                         continue
@@ -358,10 +354,10 @@ def convert_subscribe(subscribe_dict):
             if not response or not response.ok:
                 print("Trying direct connection for conversion...")
                 response = requests.get(url, timeout=30)
-
+            
             if response.ok:
                 content = response.text
-                if 'proxies:' in content:  # 验证返回内容是否是有效的配置
+                if 'proxies:' in content:
                     update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
                     content += f"\n\n# Updated on {update_time}\n"
                     results[filename] = {
@@ -380,6 +376,8 @@ def convert_subscribe(subscribe_dict):
             print(f"Error: converting {filename}: {str(e)}")
     
     return results
+
+
 def main():
     try:
         print("\n=== Start running converter_push.py ===")
