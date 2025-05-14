@@ -251,33 +251,74 @@ def convert_subscribe(subscribe_dict):
             print(f"Warning: Could not extract URL from params for {filename}")
             continue
             
-        # 获取该订阅的响应头
-        print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
-        sub_headers = get_original_headers(original_url)
+        # 首先尝试使用代理获取订阅内容
+        print(f"Fetching subscription content with proxy for {filename}")
+        try:
+            response = requests.get(
+                original_url,
+                headers={
+                    'User-Agent': 'clash-verge/v1.0',
+                    'Accept': '*/*',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive'
+                },
+                proxies=proxies,
+                timeout=30,
+                verify=False
+            )
+            if response.ok:
+                sub_content = response.text
+                print(f"Successfully got subscription content for {filename}")
+            else:
+                print(f"Failed to get subscription content with proxy: {response.status_code}")
+                sub_content = None
+        except Exception as e:
+            print(f"Error getting subscription content with proxy: {str(e)}")
+            sub_content = None
+            
+        # 如果代理获取失败，尝试直接连接
+        if not sub_content:
+            print(f"Trying direct connection for {filename}")
+            try:
+                response = requests.get(original_url, timeout=30)
+                if response.ok:
+                    sub_content = response.text
+                    print(f"Successfully got subscription content with direct connection")
+                else:
+                    print(f"Failed to get subscription content: {response.status_code}")
+                    continue
+            except Exception as e:
+                print(f"Error getting subscription content: {str(e)}")
+                continue
         
+        # 获取响应头
+        print(f"Fetching headers for {filename}")
+        sub_headers = get_original_headers(original_url)
         if sub_headers:
             print(f"Successfully got headers for {filename}")
-        else:
-            print(f"Warning: No headers received for {filename}")
         
-        # 转换配置（使用代理）
+        # 转换配置
         url = f"{base_url}{params}"
         try:
             print(f"Converting configuration using URL: {mask_params(params)}")
             
-            # 首先尝试使用代理
+            # 首先尝试使用代理进行转换
+            print("Attempting conversion with proxy...")
             try:
-                print("Attempting conversion with proxy...")
                 response = requests.get(
-                    url, 
+                    url,
+                    proxies=proxies,
                     timeout=30,
-                    verify=verify,
-                    auth=auth,
+                    verify=False
                 )
             except Exception as e:
                 print(f"Proxy conversion failed: {str(e)}")
-                print("Trying direct connection...")
-                # 如果代理失败，尝试直接连接
+                response = None
+            
+            # 如果代理转换失败，尝试直接连接
+            if not response or not response.ok:
+                print("Proxy conversion failed, trying direct connection...")
                 response = requests.get(url, timeout=30)
             
             if response.ok:
@@ -297,6 +338,7 @@ def convert_subscribe(subscribe_dict):
                 print(f"Error: converting {filename}: {response.status_code}")
                 if response.text:
                     print(f"Error details: {response.text[:200]}")
+                
         except Exception as e:
             print(f"Error: converting {filename}: {str(e)}")
     
