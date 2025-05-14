@@ -20,23 +20,55 @@ jobs:
     steps:
 
 
-      - name: Test Domain Access
+      - name: Install curl
         run: |
-          echo "Testing domain accessibility..."
-          curl -I "https://xn--cp3a08l.com" \
-            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36" \
-            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7" \
-            -H "Accept-Language: en-US,en;q=0.9" \
-            -H "Accept-Encoding: gzip, deflate, br" \
-            -H "Cache-Control: max-age=0" \
-            -H "Sec-CH-UA: \"Chromium\";v=\"121\", \"Google Chrome\";v=\"121\", \"Not A(Brand\";v=\"99\"" \
-            -H "Sec-CH-UA-Mobile: ?0" \
-            -H "Sec-CH-UA-Platform: \"Windows\"" \
-            -H "Sec-Fetch-Site: none" \
-            -H "Sec-Fetch-Mode: navigate" \
-            -H "Sec-Fetch-User: ?1" \
-            -H "Sec-Fetch-Dest: document" \
-            -H "Connection: keep-alive"
+          sudo apt-get update
+          sudo apt-get install -y curl
+
+      # 测试直接访问（预期会失败）
+      - name: Test Direct Access
+        run: |
+          echo "Testing direct access..."
+          curl -I https://xn--cp3a08l.com/api/v1/client/subscribe?token=49cc907209a39bdcac4d26a28399f058 || echo "Direct access failed as expected"
+
+      # 安装并配置 trojan
+      - name: Setup Trojan
+        run: |
+          # 下载 trojan
+          wget https://github.com/trojan-gfw/trojan/releases/download/v1.16.0/trojan-1.16.0-linux-amd64.tar.xz
+          tar xf trojan-1.16.0-linux-amd64.tar.xz
+          
+          # 创建配置文件
+          cat > config.json << EOF
+          {
+              "run_type": "client",
+              "local_addr": "127.0.0.1",
+              "local_port": 1080,
+              "remote_addr": "cn1.cdn.xfltd-cdn.top",
+              "remote_port": 12001,
+              "password": ["a984eec2-6f01-40e9-8a45-b17ca16d696a"],
+              "ssl": {
+                  "verify": false,
+                  "verify_hostname": false,
+                  "sni": "cdn.alibaba.com"
+              }
+          }
+          EOF
+          
+          # 启动 trojan
+          ./trojan -c config.json &
+          sleep 5  # 等待trojan启动
+
+      # 测试通过代理访问
+      - name: Test Proxy Access
+        run: |
+          echo "Testing access through proxy..."
+          # 使用 curl 通过 socks5 代理访问
+          curl -x socks5h://127.0.0.1:1080 -I https://xn--cp3a08l.com/api/v1/client/subscribe?token=49cc907209a39bdcac4d26a28399f058
+          
+          # 也测试访问其他网站
+          echo "Testing access to other sites through proxy..."
+          curl -x socks5h://127.0.0.1:1080 -I https://www.google.com
 
 
       # 新增：检查网络环境步骤
@@ -85,17 +117,17 @@ jobs:
           nohup subconverter/subconverter &
 
 
-      - name: runrun python
-        env:
+      # - name: runrun python
+      #   env:
 
         
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CF_ACCOUNT_API_TOKEN: ${{ secrets.CF_ACCOUNT_API_TOKEN }}
-          CF_KV_ID: ${{ secrets.CF_KV_ID }}
-          CONVERT_PARAM: ${{ secrets.CONVERT_PARAM }}
-          # PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
-          # GIST_ID: ${{ secrets.GIST_ID }}
+      #     CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      #     CF_ACCOUNT_API_TOKEN: ${{ secrets.CF_ACCOUNT_API_TOKEN }}
+      #     CF_KV_ID: ${{ secrets.CF_KV_ID }}
+      #     CONVERT_PARAM: ${{ secrets.CONVERT_PARAM }}
+      #     # PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
+      #     # GIST_ID: ${{ secrets.GIST_ID }}
 
 
-        run: python converter_push.py
+      #   run: python converter_push.py
 
