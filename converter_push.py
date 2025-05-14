@@ -1,11 +1,11 @@
 import os
 import sys
 import json
-import yaml
 import base64
 import requests
 import urllib.parse
 from datetime import datetime, timedelta
+
 
 class CloudflareKV:
     def __init__(self, account_id, kv_id, account_api_token):
@@ -18,6 +18,7 @@ class CloudflareKV:
             "Content-Type": "application/json"
         }
 
+    
     def check_key_exists(self, key_name):
         """检查 KV 键是否存在"""
         try:
@@ -30,6 +31,7 @@ class CloudflareKV:
         except:
             return False
 
+    
     def update_config(self, key_name, content, headers=None):
         """更新 CF KV 存储"""
         try:
@@ -38,9 +40,9 @@ class CloudflareKV:
             operation = "Updating" if is_update else "Creating"
             print(f"{operation} CF KV for {key_name}...")
             
-            # 构建存储数据
+            # 构建存储数据，使用文件名作为配置键
             kv_data = {
-                key_name: base64.b64encode(content.encode()).decode(),
+                key_name: base64.b64encode(content.encode()).decode(),  # 使用文件名作为键
                 "update_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
                 "headers": headers or {}
             }
@@ -62,202 +64,25 @@ class CloudflareKV:
             print(f"Error: {operation.lower()}ing CF KV for {key_name}: {str(e)}")
             return False
 
-def get_subscription_headers():
-    """获取订阅请求头"""
-    return {
-        'User-Agent': 'ClashforWindows/0.20.39',
-        'Accept': '*/*',
-        'Accept-Encoding': 'gzip, deflate',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Pragma': 'no-cache'
-    }
-
-def check_subscription_format(content):
-    """检查并尝试多种格式转换"""
-    try:
-        # 尝试 Base64 解码
-        try:
-            base64_decoded = base64.b64decode(content.strip()).decode('utf-8')
-            if 'vmess://' in base64_decoded or 'trojan://' in base64_decoded or 'ss://' in base64_decoded:
-                return base64_decoded
-        except:
-            pass
-
-        # 检查是否是 URI 格式
-        if any(line.startswith(('vmess://', 'trojan://', 'ss://')) for line in content.splitlines()):
-            return content
-
-        # 尝试 YAML 解析
-        try:
-            config = yaml.safe_load(content)
-            if isinstance(config, dict):
-                # 如果已经有 proxies 字段，检查格式
-                if 'proxies' in config:
-                    return content
-
-                # 寻找代理节点特征
-                proxy_list = []
-                for key, value in config.items():
-                    if isinstance(value, list):
-                        for item in value:
-                            if isinstance(item, dict) and 'type' in item:
-                                if item['type'].lower() in ['vmess', 'ss', 'ssr', 'trojan']:
-                                    proxy_list.append(item)
-                
-                if proxy_list:
-                    new_config = {
-                        'proxies': proxy_list,
-                        'proxy-groups': [{
-                            'name': 'Proxy',
-                            'type': 'select',
-                            'proxies': [p.get('name', f'Node {i+1}') for i, p in enumerate(proxy_list)]
-                        }]
-                    }
-                    # 保留原始配置中的其他设置
-                    for key, value in config.items():
-                        if key not in ['proxies', 'proxy-groups']:
-                            new_config[key] = value
-                    return yaml.dump(new_config, allow_unicode=True)
-        except:
-            pass
-
-        return content
-
-    except Exception as e:
-        print(f"Error checking subscription format: {str(e)}")
-        return content
-
-def convert_links_to_clash(content):
-    """将链接格式转换为 Clash 配置"""
-    proxies = []
-    proxy_names = []
-    
-    for line in content.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-            
-        if line.startswith('vmess://'):
-            try:
-                b64 = line[8:]
-                decoded = base64.b64decode(b64).decode('utf-8')
-                config = json.loads(decoded)
-                proxy = {
-                    'name': config.get('ps', f'vmess-{len(proxies)+1}'),
-                    'type': 'vmess',
-                    'server': config.get('add'),
-                    'port': int(config.get('port')),
-                    'uuid': config.get('id'),
-                    'alterId': int(config.get('aid', 0)),
-                    'cipher': config.get('scy', 'auto'),
-                    'tls': config.get('tls') == 'tls'
-                }
-                proxies.append(proxy)
-                proxy_names.append(proxy['name'])
-            except:
-                continue
-                
-        elif line.startswith(('ss://', 'trojan://')):
-            try:
-                # 处理其他类型的代理链接
-                pass
-            except:
-                continue
-    
-    if proxies:
-        return yaml.dump({
-            'proxies': proxies,
-            'proxy-groups': [{
-                'name': 'Proxy',
-                'type': 'select',
-                'proxies': proxy_names
-            }]
-        }, allow_unicode=True)
-    
-    return None
-
-def mask_sensitive_url(url):
-    """对敏感 URL 进行脱敏处理"""
-    try:
-        if not url:
-            return ""
-        parsed = urllib.parse.urlparse(url)
-        query_params = urllib.parse.parse_qs(parsed.query)
-        
-        for sensitive_param in ['token', 'password', 'key', 'secret']:
-            if sensitive_param in query_params:
-                value = query_params[sensitive_param][0]
-                if len(value) > 8:
-                    query_params[sensitive_param] = [f"{value[:4]}...{value[-4:]}"]
-        
-        masked_query = urllib.parse.urlencode(query_params, doseq=True)
-        return f"{parsed.scheme}://{parsed.netloc}/...?{masked_query[:30]}..."
-    except:
-        return "masked_url"
-
-def mask_params(params):
-    """对参数进行脱敏处理"""
-    try:
-        if not params:
-            return ""
-        url_start = params.find("&url=")
-        if url_start >= 0:
-            prefix = params[:url_start + 5]
-            remaining = params[url_start + 5:]
-            url_end = remaining.find("&")
-            if url_end >= 0:
-                url_part = remaining[:url_end]
-                after_url = remaining[url_end:]
-            else:
-                url_part = remaining
-                after_url = ""
-            
-            decoded_url = urllib.parse.unquote(url_part)
-            masked_url = mask_sensitive_url(decoded_url)
-            return f"{prefix}{urllib.parse.quote(masked_url)}{after_url[:30]}..."
-        return f"{params[:30]}..."
-    except:
-        return "masked_params"
-
-def extract_url_from_params(params):
-    """从参数中提取订阅 URL"""
-    try:
-        print(f"Processing params: {mask_params(params)}")
-        start = params.find("&url=") + 5
-        if start > 4:
-            end = params.find("&", start)
-            if end == -1:
-                url = params[start:]
-            else:
-                url = params[start:end]
-            
-            decoded_url = urllib.parse.unquote(url)
-            print(f"Decoded URL: {mask_sensitive_url(decoded_url)}")
-            
-            if not decoded_url.startswith(('http://', 'https://')):
-                decoded_url = 'https://' + decoded_url
-            
-            return decoded_url
-    except Exception as e:
-        print(f"Error extracting URL from params: {str(e)}")
-    return None
 
 def get_original_headers(url):
     """获取原始订阅的响应头"""
     try:
-        headers = get_subscription_headers()
-        response = requests.get(url, headers=headers, timeout=30)
+        response = requests.get(
+            url,
+            headers={
+                'User-Agent': 'clash-verge/v1.0',
+                'Accept': '*/*',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive'
+            },
+            timeout=30
+        )
         
         if response.ok:
-            # 检查内容格式
-            content = response.text
-            decoded_content = check_subscription_format(content)
-            if decoded_content:
-                print("Successfully decoded subscription content")
-            
-            # 处理响应头
-            result_headers = {}
+            headers = {}
+            # 保存所有相关的响应头
             headers_to_save = [
                 'subscription-userinfo',
                 'content-disposition',
@@ -271,37 +96,124 @@ def get_original_headers(url):
             for header in headers_to_save:
                 if header in response.headers:
                     if header == 'content-disposition':
+                        # 处理 content-disposition 头，添加 T: 前缀
                         content_disp = response.headers[header]
                         if 'filename' in content_disp:
+                            # 如果是 filename*= 格式
                             if 'filename*=' in content_disp:
                                 parts = content_disp.split("''")
                                 if len(parts) > 1:
                                     encoding_part = parts[0]
                                     filename_part = parts[1]
                                     new_filename = f"T:{filename_part}"
-                                    result_headers[header] = f"{encoding_part}''{new_filename}"
+                                    headers[header] = f"{encoding_part}''{new_filename}"
+                            # 如果是简单的 filename= 格式
                             else:
                                 filename_start = content_disp.find('filename=') + 9
                                 filename = content_disp[filename_start:]
                                 if filename.startswith('"'):
                                     filename = filename[1:-1]
                                 new_filename = f"T:{filename}"
-                                result_headers[header] = f"attachment;filename={new_filename}"
+                                headers[header] = f"attachment;filename={new_filename}"
                     else:
-                        result_headers[header] = response.headers[header]
+                        headers[header] = response.headers[header]
             
             # 保存其他以 'profile-' 开头的头
             for key, value in response.headers.items():
                 key_lower = key.lower()
-                if key_lower.startswith('profile-') and key_lower not in result_headers:
-                    result_headers[key_lower] = value
+                if key_lower.startswith('profile-') and key_lower not in headers:
+                    headers[key_lower] = value
             
-            return result_headers
-            
+            return headers
     except Exception as e:
         print(f"Warning: Failed to fetch original headers: {str(e)}")
     
     return None
+
+
+def mask_sensitive_url(url):
+    """对敏感 URL 进行脱敏处理"""
+    try:
+        if not url:
+            return ""
+        # 解析 URL
+        parsed = urllib.parse.urlparse(url)
+        
+        # 获取查询参数
+        query_params = urllib.parse.parse_qs(parsed.query)
+        
+        # 处理 token 或其他敏感参数
+        for sensitive_param in ['token', 'password', 'key', 'secret']:
+            if sensitive_param in query_params:
+                value = query_params[sensitive_param][0]
+                if len(value) > 8:
+                    query_params[sensitive_param] = [f"{value[:4]}...{value[-4:]}"]
+        
+        # 重建查询字符串
+        masked_query = urllib.parse.urlencode(query_params, doseq=True)
+        
+        # 重建 URL，只显示域名和处理后的参数
+        return f"{parsed.scheme}://{parsed.netloc}/...?{masked_query[:30]}..."
+    except:
+        return "masked_url"
+
+def mask_params(params):
+    """对参数进行脱敏处理"""
+    try:
+        if not params:
+            return ""
+        # 找到 url 参数的位置
+        url_start = params.find("&url=")
+        if url_start >= 0:
+            # 保留 url= 之前的部分
+            prefix = params[:url_start + 5]
+            # 对 URL 部分进行处理
+            remaining = params[url_start + 5:]
+            url_end = remaining.find("&")
+            if url_end >= 0:
+                url_part = remaining[:url_end]
+                after_url = remaining[url_end:]
+            else:
+                url_part = remaining
+                after_url = ""
+            
+            # 解码并脱敏 URL
+            decoded_url = urllib.parse.unquote(url_part)
+            masked_url = mask_sensitive_url(decoded_url)
+            
+            # 返回处理后的参数字符串
+            return f"{prefix}{urllib.parse.quote(masked_url)}{after_url[:30]}..."
+        return f"{params[:30]}..."
+    except:
+        return "masked_params"
+
+
+def extract_url_from_params(params):
+    """从参数中提取订阅 URL"""
+    try:
+        print(f"Processing params: {mask_params(params)}")
+        # 查找 "&url=" 和下一个 "&" 之间的内容
+        start = params.find("&url=") + 5
+        if start > 4:  # 确保找到了 "&url="
+            end = params.find("&", start)
+            if end == -1:  # 如果是最后一个参数
+                url = params[start:]
+            else:
+                url = params[start:end]
+            
+            # URL 解码
+            decoded_url = urllib.parse.unquote(url)
+            print(f"Decoded URL: {mask_sensitive_url(decoded_url)}")
+            
+            # 检查 URL 是否包含协议前缀
+            if not decoded_url.startswith(('http://', 'https://')):
+                decoded_url = 'https://' + decoded_url
+            
+            return decoded_url
+    except Exception as e:
+        print(f"Error extracting URL from params: {str(e)}")
+    return None
+
 
 def convert_subscribe(subscribe_dict):
     """转换订阅"""
@@ -310,125 +222,42 @@ def convert_subscribe(subscribe_dict):
     results = {}
     
     for filename, params in subscribe_dict.items():
-        print(f"\nConverting {filename}...")
-        temp_file = None
+        print(f"Converting {filename}...")
         
+        # 从参数中提取原始订阅 URL
+        original_url = extract_url_from_params(params)
+        print(f"Extracted URL for {filename}: {mask_sensitive_url(original_url)}")
+        
+        if not original_url:
+            print(f"Warning: Could not extract URL from params for {filename}")
+            continue
+            
+        # 获取该订阅的响应头
+        print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
+        sub_headers = get_original_headers(original_url)
+        
+        if sub_headers:
+            print(f"Successfully got headers for {filename}")
+        else:
+            print(f"Warning: No headers received for {filename}")
+        
+        # 转换配置
+        url = f"{base_url}{params}"
         try:
-            # 从参数中提取原始订阅 URL
-            original_url = extract_url_from_params(params)
-            print(f"Extracted URL for {filename}: {mask_sensitive_url(original_url)}")
-            
-            if not original_url:
-                print(f"Warning: Could not extract URL from params for {filename}")
-                continue
-            
-            # 获取订阅内容
-            print(f"\nChecking subscription source...")
-            headers = get_subscription_headers()
-            
-            try:
-                # 添加客户端标识
-                if '?' in original_url:
-                    source_url = f"{original_url}&client=clash"
-                else:
-                    source_url = f"{original_url}?client=clash"
-                
-                response = requests.get(source_url, headers=headers, timeout=30)
-                print(f"Source response status: {response.status_code}")
-                
-                if response.ok:
-                    content = response.text
-                    print(f"Source content length: {len(content)}")
-                    print(f"Source content preview: {content[:100]}")
-                    
-                    # 1. 尝试直接转换
-                    print("\nTrying direct conversion first...")
-                    direct_response = requests.get(f"{base_url}{params}", timeout=30)
-                    
-                    if direct_response.ok and 'proxies:' in direct_response.text:
-                        print("Direct conversion successful")
-                        content = direct_response.text
-                        print(f"Converted content length: {len(content)}")
-                        update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                        content += f"\n\n# Updated on {update_time}\n"
-                        results[filename] = {
-                            "content": content,
-                            "headers": get_original_headers(original_url)
-                        }
-                        print(f"Successfully converted configuration for {filename}")
-                        continue
-                    
-                    print("Direct conversion failed, trying format conversion...")
-                    
-                    # 2. 尝试格式转换
-                    converted_content = check_subscription_format(content)
-                    if not converted_content and 'vmess://' in content:
-                        converted_content = convert_links_to_clash(content)
-                    
-                    if not converted_content:
-                        print("Failed to convert subscription format")
-                        continue
-                    
-                    # 3. 保存到临时文件
-                    import tempfile
-                    temp_file = tempfile.NamedTemporaryFile(mode='w+', suffix='.yaml', delete=False)
-                    temp_file.write(converted_content)
-                    temp_file.flush()
-                    print(f"Created temporary file: {temp_file.name}")
-                    
-                    # 检查临时文件内容
-                    with open(temp_file.name, 'r') as f:
-                        print(f"Temporary file content preview: {f.read()[:200]}")
-                    
-                    # 4. 使用临时文件进行转换
-                    local_url = f"file://{temp_file.name}"
-                    url_start = params.find('&url=')
-                    if url_start != -1:
-                        url_end = params.find('&', url_start + 5)
-                        if url_end != -1:
-                            new_params = params[:url_start + 5] + urllib.parse.quote(local_url) + params[url_end:]
-                        else:
-                            new_params = params[:url_start + 5] + urllib.parse.quote(local_url)
-                    else:
-                        new_params = params
-                    
-                    # 5. 执行转换
-                    url = f"{base_url}{new_params}"
-                    print(f"\nConverting configuration using local file...")
-                    print(f"Full URL: {url}")
-                    response = requests.get(url, timeout=30)
-                    print(f"Subconverter response status: {response.status_code}")
-                    
-                    if response.ok and 'proxies:' in response.text:
-                        content = response.text
-                        print(f"Converted content length: {len(content)}")
-                        update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                        content += f"\n\n# Updated on {update_time}\n"
-                        results[filename] = {
-                            "content": content,
-                            "headers": get_original_headers(original_url)
-                        }
-                        print(f"Successfully converted configuration for {filename}")
-                    else:
-                        print(f"Error response: {response.text}")
-                        print(f"Error headers: {dict(response.headers)}")
-                else:
-                    print(f"Error getting source content: {response.status_code}")
-                    
-            except Exception as e:
-                print(f"Error during conversion: {str(e)}")
-                
+            print(f"Converting configuration using URL: {mask_params(params)}")
+            response = requests.get(url, timeout=30)
+            if response.ok:
+                content = response.text
+                update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                content += f"\n\n# Updated on {update_time}\n"  # 添加updatetime时间戳
+                results[filename] = {
+                    "content": content,
+                    "headers": sub_headers
+                }
+            else:
+                print(f"Error: converting {filename}: {response.status_code}")
         except Exception as e:
-            print(f"Error processing {filename}: {str(e)}")
-            
-        finally:
-            # 清理临时文件
-            if temp_file and os.path.exists(temp_file.name):
-                try:
-                    os.unlink(temp_file.name)
-                    print(f"Cleaned up temporary file: {temp_file.name}")
-                except Exception as e:
-                    print(f"Error cleaning up temporary file: {str(e)}")
+            print(f"Error: converting {filename}: {str(e)}")
     
     return results
 
@@ -444,7 +273,6 @@ def main():
             "CF_ACCOUNT_API_TOKEN": "CF Account API Token",
             "CONVERT_PARAM": "Convert Parame"
         }
-        
         for var, desc in required_vars.items():
             if var not in os.environ:
                 raise Exception(f"Missing {desc} ({var})")
@@ -468,7 +296,7 @@ def main():
             os.environ["CF_ACCOUNT_API_TOKEN"]
         )
 
-        # 更新每个配置到 KV
+        # 更新每个配置到 KV，使用文件名作为 key
         success_count = 0
         for filename, data in results.items():
             if cf_kv.update_config(filename, data["content"], data["headers"]):
