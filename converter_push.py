@@ -221,6 +221,9 @@ def convert_subscribe(subscribe_dict):
     base_url = "http://localhost:25500/sub"
     results = {}
     
+    # 初始化代理列表
+    proxy_list = []
+    
     for filename, params in subscribe_dict.items():
         print(f"Converting {filename}...")
         
@@ -234,33 +237,149 @@ def convert_subscribe(subscribe_dict):
             
         # 获取该订阅的响应头
         print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
-        sub_headers = get_original_headers(original_url)
         
-        if sub_headers:
-            print(f"Successfully got headers for {filename}")
-        else:
-            print(f"Warning: No headers received for {filename}")
+        # 尝试不同的方式获取订阅内容
+        max_retries = 3
+        sub_headers = None
+        
+        for attempt in range(max_retries):
+            try:
+                # 第一次尝试直接访问
+                if attempt == 0:
+                    print(f"Attempt {attempt + 1}: Direct connection")
+                    sub_headers = get_original_headers(original_url)
+                
+                # 第二次尝试使用已有代理
+                elif attempt == 1 and proxy_list:
+                    print(f"Attempt {attempt + 1}: Using existing proxy")
+                    for proxy in proxy_list:
+                        try:
+                            proxies = {
+                                'http': proxy,
+                                'https': proxy
+                            }
+                            print(f"Trying proxy: {proxy}")
+                            sub_headers = get_original_headers(original_url, proxies=proxies)
+                            if sub_headers:
+                                print(f"Proxy {proxy} successful")
+                                break
+                        except Exception as e:
+                            print(f"Proxy {proxy} failed: {str(e)}")
+                            continue
+                
+                # 第三次尝试从当前URL获取新代理
+                else:
+                    print(f"Attempt {attempt + 1}: Trying to get new proxy from current subscription")
+                    try:
+                        headers = get_subscription_headers()
+                        response = requests.get(original_url, headers=headers, timeout=30)
+                        if response.ok:
+                            content = response.text
+                            try:
+                                content = base64.b64decode(content.strip()).decode('utf-8')
+                            except:
+                                pass
+                            
+                            # 查找可用代理
+                            for line in content.splitlines():
+                                if line.startswith(('vmess://', 'trojan://', 'ss://')):
+                                    try:
+                                        proxy = None
+                                        if line.startswith('vmess://'):
+                                            b64 = line[8:]
+                                            config = json.loads(base64.b64decode(b64).decode('utf-8'))
+                                            proxy = f"socks5://{config['add']}:{config['port']}"
+                                        else:
+                                            server = line.split('@')[1].split('?')[0]
+                                            proxy = f"socks5://{server}"
+                                        
+                                        if proxy and proxy not in proxy_list:
+                                            proxies = {
+                                                'http': proxy,
+                                                'https': proxy
+                                            }
+                                            print(f"Testing new proxy: {proxy}")
+                                            # 测试代理
+                                            test_response = requests.get(
+                                                "http://www.gstatic.com/generate_204",
+                                                proxies=proxies,
+                                                timeout=5,
+                                                verify=False
+                                            )
+                                            if test_response.status_code == 204:
+                                                print(f"New proxy {proxy} is working")
+                                                proxy_list.append(proxy)
+                                                sub_headers = get_original_headers(original_url, proxies=proxies)
+                                                if sub_headers:
+                                                    print(f"Successfully got headers using new proxy")
+                                                    break
+                                    except Exception as e:
+                                        print(f"Error testing proxy: {str(e)}")
+                                        continue
+                    except Exception as e:
+                        print(f"Error getting new proxy: {str(e)}")
+
+                if sub_headers:
+                    print(f"Successfully got headers for {filename}")
+                    break
+                else:
+                    print(f"Warning: No headers received for {filename} on attempt {attempt + 1}")
+
+            except Exception as e:
+                print(f"Error on attempt {attempt + 1}: {str(e)}")
+                if attempt == max_retries - 1:
+                    print(f"All attempts failed for {filename}")
+                    continue
         
         # 转换配置
         url = f"{base_url}{params}"
         try:
             print(f"Converting configuration using URL: {mask_params(params)}")
-            response = requests.get(url, timeout=30)
+            
+            # 使用找到的可用代理进行转换
+            response = None
+            if proxy_list:
+                for proxy in proxy_list:
+                    try:
+                        proxies = {
+                            'http': proxy,
+                            'https': proxy
+                        }
+                        print(f"Trying conversion with proxy: {proxy}")
+                        response = requests.get(url, timeout=30, proxies=proxies, verify=False)
+                        if response.ok:
+                            print(f"Conversion successful with proxy {proxy}")
+                            break
+                    except Exception as e:
+                        print(f"Conversion failed with proxy {proxy}: {str(e)}")
+                        continue
+            
+            # 如果代理都失败了，尝试直接连接
+            if not response or not response.ok:
+                print("Trying direct connection for conversion...")
+                response = requests.get(url, timeout=30)
+
             if response.ok:
                 content = response.text
-                update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                content += f"\n\n# Updated on {update_time}\n"  # 添加updatetime时间戳
-                results[filename] = {
-                    "content": content,
-                    "headers": sub_headers
-                }
+                if 'proxies:' in content:  # 验证返回内容是否是有效的配置
+                    update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    content += f"\n\n# Updated on {update_time}\n"
+                    results[filename] = {
+                        "content": content,
+                        "headers": sub_headers
+                    }
+                    print(f"Successfully converted {filename}")
+                else:
+                    print(f"Error: Invalid configuration format for {filename}")
+                    print(f"Response preview: {content[:200]}")
             else:
                 print(f"Error: converting {filename}: {response.status_code}")
+                if response.text:
+                    print(f"Error details: {response.text[:200]}")
         except Exception as e:
             print(f"Error: converting {filename}: {str(e)}")
     
     return results
-
 def main():
     try:
         print("\n=== Start running converter_push.py ===")
