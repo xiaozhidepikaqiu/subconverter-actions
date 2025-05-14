@@ -47,6 +47,12 @@ jobs:
           echo -e "\n=== Network Speed Test ==="
           curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python -
 
+
+      - name: Test Domain Access
+        run: |
+          echo "Testing domain accessibility..."
+          curl -I -m 10 https://xn--cp3a08l.com
+
     
       - name: Checkout repository
         uses: actions/checkout@v3
