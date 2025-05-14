@@ -19,6 +19,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
+
+      # 新增：检查网络环境步骤
+      - name: Check Network Environment
+        run: |
+          echo "============= Network Environment Check ============="
+          echo "Current Time (UTC): $(date -u '+%Y-%m-%D %H:%M:%S')"
+          
+          echo -e "\n=== Current IP Address ==="
+          curl -s ip.sb
+          
+          echo -e "\n=== IP Location Details ==="
+          curl -s ipinfo.io | jq .
+          
+          echo -e "\n=== IP Geographic Info ==="
+          curl -s http://ip-api.com/json | jq .
+          
+          echo -e "\n=== Testing Connection to Chinese Websites ==="
+          echo "Testing Baidu.com:"
+          curl -I -m 10 -o /dev/null -s -w "Baidu Response: %{http_code}\n" http://baidu.com
+          echo "Testing Alibaba.com:"
+          curl -I -m 10 -o /dev/null -s -w "Alibaba Response: %{http_code}\n" http://alibaba.com
+          
+          echo -e "\n=== Network Route to Baidu ==="
+          traceroute -m 10 baidu.com || true
+          
+          echo -e "\n=== Network Speed Test ==="
+          curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python -
+
     
       - name: Checkout repository
         uses: actions/checkout@v3
