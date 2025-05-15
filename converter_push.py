@@ -22,8 +22,9 @@ class CloudflareKV:
     def check_key_exists(self, key_name):
         """检查 KV 键是否存在"""
         try:
+            encoded_key = urllib.parse.quote(key_name)
             response = requests.get(
-                f"{self.base_url}/{key_name}",
+                f"{self.base_url}/{encoded_key}",
                 headers=self.headers,
                 timeout=30
             )
@@ -40,17 +41,20 @@ class CloudflareKV:
             operation = "Updating" if is_update else "Creating"
             print(f"{operation} CF KV for {key_name}...")
             
-            # 构建存储数据，使用文件名作为配置键
+            # 构建存储数据
             kv_data = {
-                key_name: base64.b64encode(content.encode()).decode(),  # 使用文件名作为键
+                key_name: base64.b64encode(content.encode()).decode(),
                 "update_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
                 "headers": headers or {}
             }
             
+            # URL encode the key name for the API request
+            encoded_key = urllib.parse.quote(key_name)
+            
             response = requests.put(
-                f"{self.base_url}/{key_name}",
+                f"{self.base_url}/{encoded_key}",
                 headers=self.headers,
-                json=kv_data,
+                data=json.dumps(kv_data, ensure_ascii=False),  # 确保中文正确编码
                 timeout=30
             )
             
