@@ -68,17 +68,18 @@ class CloudflareKV:
 def get_original_headers(url):
     """获取原始订阅的响应头"""
     try:
-        response = requests.get(
-            url,
-            headers={
-                'User-Agent': 'clash-verge/v1.0',
-                'Accept': '*/*',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive'
-            },
-            timeout=30
-        )
+        session = requests.Session()
+        headers = get_browser_headers()  # 使用浏览器请求头
+        
+        # 使用 session 和新的请求头发送请求
+        response = session.get(url, headers=headers, timeout=30)
+        
+        # 如果收到 403，等待后重试一次
+        if response.status_code == 403:
+            print("First attempt blocked, retrying...")
+            import time
+            time.sleep(3)
+            response = session.get(url, headers=headers, timeout=30)
         
         if response.ok:
             headers = {}
@@ -129,7 +130,7 @@ def get_original_headers(url):
         print(f"Warning: Failed to fetch original headers: {str(e)}")
     
     return None
-
+    
 
 def mask_sensitive_url(url):
     """对敏感 URL 进行脱敏处理"""
