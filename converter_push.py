@@ -221,14 +221,21 @@ def convert_subscribe(subscribe_dict):
     print("Start Subscription Conversion")
     base_url = "http://localhost:25500/sub"
     results = {}
-
-    session = requests.Session()  # 请求头标记
-    headers = get_browser_headers()  # 请求头标记
+    
+    # 使用统一的 Clash 风格请求头
+    headers = {
+        'User-Agent': 'clash-verge/v1.0',
+        'Accept': '*/*',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+    }
+    
+    session = requests.Session()
     
     for filename, params in subscribe_dict.items():
         print(f"Converting {filename}...")
         
-        # 从参数中提取原始订阅 URL
         original_url = extract_url_from_params(params)
         print(f"Extracted URL for {filename}: {mask_sensitive_url(original_url)}")
         
@@ -236,7 +243,6 @@ def convert_subscribe(subscribe_dict):
             print(f"Warning: Could not extract URL from params for {filename}")
             continue
             
-        # 获取该订阅的响应头
         print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
         sub_headers = get_original_headers(original_url)
         
@@ -245,15 +251,20 @@ def convert_subscribe(subscribe_dict):
         else:
             print(f"Warning: No headers received for {filename}")
         
-        # 转换配置
         url = f"{base_url}{params}"
         try:
             print(f"Converting configuration using URL: {mask_params(params)}")
-            response = session.get(url, headers=headers, timeout=30)  # 请求头标记
+            response = session.get(url, headers=headers, timeout=30)
+            if response.status_code == 403:
+                print("Request blocked, retrying after delay...")
+                import time
+                time.sleep(3)
+                response = session.get(url, headers=headers, timeout=30)
+                
             if response.ok:
                 content = response.text
                 update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                content += f"\n\n# Updated on {update_time}\n"  # 添加updatetime时间戳
+                content += f"\n\n# Updated on {update_time}\n"
                 results[filename] = {
                     "content": content,
                     "headers": sub_headers
@@ -264,26 +275,6 @@ def convert_subscribe(subscribe_dict):
             print(f"Error: converting {filename}: {str(e)}")
     
     return results
-
-# 这个逼请求头搞得我三天没办法转换成功，被cf检测python_request的请求头，转换失败（(# 请求头标记)的是修改的请求头代码）
-def get_browser_headers():
-    """返回模拟浏览器的请求头"""
-    return {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'sec-ch-ua': '"Chromium";v="136", "Google Chrome";v="136", "Not_A Brand";v="8"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'DNT': '1'
-    }
 
 
 def main():
