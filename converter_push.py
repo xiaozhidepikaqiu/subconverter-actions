@@ -68,17 +68,11 @@ class CloudflareKV:
 def get_original_headers(url):
     """获取原始订阅的响应头"""
     try:
-        response = requests.get(
-            url,
-            headers={
-                'User-Agent': 'clash-verge/v1.0',
-                'Accept': '*/*',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive'
-            },
-            timeout=30
-        )
+        session = requests.Session()
+        headers = get_browser_headers()  # 使用浏览器请求头
+        
+        # 使用 session 和新的请求头发送请求
+        response = session.get(url, headers=headers, timeout=30)
         
         if response.ok:
             headers = {}
