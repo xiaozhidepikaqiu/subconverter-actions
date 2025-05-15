@@ -68,18 +68,17 @@ class CloudflareKV:
 def get_original_headers(url):
     """获取原始订阅的响应头"""
     try:
-        session = requests.Session()
-        headers = get_browser_headers()  # 使用浏览器请求头
-        
-        # 使用 session 和新的请求头发送请求
-        response = session.get(url, headers=headers, timeout=30)
-        
-        # 如果收到 403，等待后重试一次
-        if response.status_code == 403:
-            print("First attempt blocked, retrying...")
-            import time
-            time.sleep(3)
-            response = session.get(url, headers=headers, timeout=30)
+        response = requests.get(
+            url,
+            headers={
+                'User-Agent': 'clash-verge/v1.0',
+                'Accept': '*/*',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive'
+            },
+            timeout=30
+        )
         
         if response.ok:
             headers = {}
@@ -222,7 +221,7 @@ def convert_subscribe(subscribe_dict):
     base_url = "http://localhost:25500/sub"
     results = {}
     
-    # 使用统一的 Clash 风格请求头
+    # 使用统一的 Clash 风格请求头，！！！这个逼请求头搞得我三天没办法转换成功，被cf检测python_request的请求头，转换失败
     headers = {
         'User-Agent': 'clash-verge/v1.0',
         'Accept': '*/*',
@@ -235,14 +234,16 @@ def convert_subscribe(subscribe_dict):
     
     for filename, params in subscribe_dict.items():
         print(f"Converting {filename}...")
-        
+
+        # 从参数中提取原始订阅 URL
         original_url = extract_url_from_params(params)
         print(f"Extracted URL for {filename}: {mask_sensitive_url(original_url)}")
         
         if not original_url:
             print(f"Warning: Could not extract URL from params for {filename}")
             continue
-            
+
+        # 获取该订阅的响应头
         print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
         sub_headers = get_original_headers(original_url)
         
@@ -250,17 +251,12 @@ def convert_subscribe(subscribe_dict):
             print(f"Successfully got headers for {filename}")
         else:
             print(f"Warning: No headers received for {filename}")
-        
+
+        # 转换配置
         url = f"{base_url}{params}"
         try:
             print(f"Converting configuration using URL: {mask_params(params)}")
             response = session.get(url, headers=headers, timeout=30)
-            if response.status_code == 403:
-                print("Request blocked, retrying after delay...")
-                import time
-                time.sleep(3)
-                response = session.get(url, headers=headers, timeout=30)
-                
             if response.ok:
                 content = response.text
                 update_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
