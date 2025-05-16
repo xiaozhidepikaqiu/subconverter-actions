@@ -291,6 +291,7 @@ def convert_subscribe(subscribe_dict):
     session = requests.Session()
     
     for filename, params in subscribe_dict.items():
+        print(f"==============================\n")
         print(f"Converting {filename}...")
 
         # 从参数中提取原始订阅 URL
