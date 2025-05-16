@@ -18,6 +18,60 @@ class CloudflareKV:
             "Content-Type": "application/json"
         }
 
+
+    def list_keys(self):
+        """获取所有键名"""
+        try:
+            response = requests.get(
+                f"{self.base_url}/keys",
+                headers=self.headers,
+                timeout=30
+            )
+            if response.ok:
+                data = response.json()
+                if data.get("success"):
+                    return [key["name"] for key in data.get("result", [])]
+            return []
+        except Exception as e:
+            print(f"Error listing keys: {str(e)}")
+            return []
+
+    def delete_key(self, key_name):
+        """删除指定的键"""
+        try:
+            encoded_key = urllib.parse.quote(key_name)
+            response = requests.delete(
+                f"{self.base_url}/values/{encoded_key}",
+                headers=self.headers,
+                timeout=30
+            )
+            if response.ok:
+                print(f"Successfully deleted key: {key_name}")
+                return True
+            print(f"Failed to delete key {key_name}: {response.status_code}")
+            return False
+        except Exception as e:
+            print(f"Error deleting key {key_name}: {str(e)}")
+            return False
+
+    def clean_unused_configs(self, current_configs):
+        """清理不再使用的配置"""
+        existing_keys = self.list_keys()
+        keys_to_delete = [key for key in existing_keys if key not in current_configs]
+        
+        if not keys_to_delete:
+            print("No unused configurations to clean")
+            return 0
+
+        print(f"\nCleaning {len(keys_to_delete)} unused configurations:")
+        deleted_count = 0
+        for key in keys_to_delete:
+            if self.delete_key(key):
+                deleted_count += 1
+        
+        print(f"Successfully cleaned {deleted_count} unused configurations")
+        return deleted_count
+
     
     def check_key_exists(self, key_name):
         """检查 KV 键是否存在"""
@@ -311,6 +365,10 @@ def main():
             os.environ["CF_KV_ID"],
             os.environ["CF_ACCOUNT_API_TOKEN"]
         )
+
+        # 首先清理不再使用的配置
+        print("\n=== Cleaning unused configurations ===")
+        cf_kv.clean_unused_configs(set(results.keys()))
 
         # 更新每个配置到 KV，使用文件名作为 key
         success_count = 0
