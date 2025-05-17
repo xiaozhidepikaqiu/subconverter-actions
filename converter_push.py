@@ -126,7 +126,7 @@ class CloudflareKV:
 def get_original_headers(url, config_name=None):
     """
     获取原始订阅的响应头
-    config_name: CONVERT_PARAM中的键名(如 'sub1.yml')
+    config_name: CONVERT_PARAM中的键名
     """
     try:
         response = requests.get(
@@ -296,7 +296,7 @@ def convert_subscribe(subscribe_dict):
 
         # 获取该订阅的响应头
         print(f"Fetching headers for {filename} from {mask_sensitive_url(original_url)}")
-        sub_headers = get_original_headers(original_url)
+        sub_headers = get_original_headers(original_url, filename)
         
         if sub_headers:
             print(f"Successfully got headers for {filename}")
