@@ -123,8 +123,11 @@ class CloudflareKV:
             return False
 
 
-def get_original_headers(url, filename=None):
-    """获取原始订阅的响应头，并将 content-disposition 名字前缀替换为 T:{filename}"""
+def get_original_headers(url, config_name=None):
+    """
+    获取原始订阅的响应头
+    config_name: CONVERT_PARAM中的键名(如 'sub1.yml')
+    """
     try:
         response = requests.get(
             url,
@@ -154,30 +157,13 @@ def get_original_headers(url, filename=None):
             for header in headers_to_save:
                 if header in response.headers:
                     if header == 'content-disposition':
-                        # 处理 content-disposition 头，将名字替换为 T:{filename}
-                        content_disp = response.headers[header]
-                        if filename:
-                            # 如果是 filename*= 格式
-                            if 'filename*=' in content_disp:
-                                # 按照 RFC 5987 格式分割
-                                parts = content_disp.split("''")
-                                if len(parts) > 1:
-                                    encoding_part = parts[0]
-                                    # 用传入 filename 替换，保持原有编码前缀
-                                    new_filename = f"T:{filename}"
-                                    headers[header] = f"{encoding_part}''{new_filename}"
-                            # 如果是简单的 filename= 格式
-                            elif 'filename=' in content_disp:
-                                filename_start = content_disp.find('filename=') + 9
-                                filename_val = content_disp[filename_start:]
-                                if filename_val.startswith('"'):
-                                    filename_val = filename_val[1:-1]
-                                new_filename = f"T:{filename}"
-                                headers[header] = f"attachment;filename={new_filename}"
-                            else:
-                                # 如果没有 filename=，直接原样抄送
-                                headers[header] = response.headers[header]
+                        # 使用config_name作为新的文件名（支持中文）
+                        if config_name:
+                            # URL编码config_name以支持中文
+                            encoded_name = urllib.parse.quote(f"T:{config_name}")
+                            headers[header] = f"attachment; filename*=UTF-8''{encoded_name}"
                         else:
+                            # 如果没有提供config_name，保持原有的content-disposition
                             headers[header] = response.headers[header]
                     else:
                         headers[header] = response.headers[header]
