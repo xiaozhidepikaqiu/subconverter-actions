@@ -123,8 +123,8 @@ class CloudflareKV:
             return False
 
 
-def get_original_headers(url):
-    """获取原始订阅的响应头"""
+def get_original_headers(url, filename=None):
+    """获取原始订阅的响应头，并将 content-disposition 名字前缀替换为 T:{filename}"""
     try:
         response = requests.get(
             url,
@@ -154,25 +154,31 @@ def get_original_headers(url):
             for header in headers_to_save:
                 if header in response.headers:
                     if header == 'content-disposition':
-                        # 处理 content-disposition 头，添加 T: 前缀
+                        # 处理 content-disposition 头，将名字替换为 T:{filename}
                         content_disp = response.headers[header]
-                        if 'filename' in content_disp:
+                        if filename:
                             # 如果是 filename*= 格式
                             if 'filename*=' in content_disp:
+                                # 按照 RFC 5987 格式分割
                                 parts = content_disp.split("''")
                                 if len(parts) > 1:
                                     encoding_part = parts[0]
-                                    filename_part = parts[1]
-                                    new_filename = f"T:{filename_part}"
+                                    # 用传入 filename 替换，保持原有编码前缀
+                                    new_filename = f"T:{filename}"
                                     headers[header] = f"{encoding_part}''{new_filename}"
                             # 如果是简单的 filename= 格式
-                            else:
+                            elif 'filename=' in content_disp:
                                 filename_start = content_disp.find('filename=') + 9
-                                filename = content_disp[filename_start:]
-                                if filename.startswith('"'):
-                                    filename = filename[1:-1]
+                                filename_val = content_disp[filename_start:]
+                                if filename_val.startswith('"'):
+                                    filename_val = filename_val[1:-1]
                                 new_filename = f"T:{filename}"
                                 headers[header] = f"attachment;filename={new_filename}"
+                            else:
+                                # 如果没有 filename=，直接原样抄送
+                                headers[header] = response.headers[header]
+                        else:
+                            headers[header] = response.headers[header]
                     else:
                         headers[header] = response.headers[header]
             
