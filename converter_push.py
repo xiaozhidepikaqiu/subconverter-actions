@@ -124,10 +124,7 @@ class CloudflareKV:
 
 
 def get_original_headers(url, config_name=None):
-    """
-    获取原始订阅的响应头
-    config_name: CONVERT_PARAM中的键名
-    """
+    """获取原始订阅的响应头"""
     try:
         response = requests.get(
             url,
@@ -157,7 +154,7 @@ def get_original_headers(url, config_name=None):
             for header in headers_to_save:
                 if header in response.headers:
                     if header == 'content-disposition':
-                        # 使用config_name作为新的文件名（支持中文）
+                        # 使用config_name作为新的文件名（支持中文）config_name: CONVERT_PARAM中的键名
                         if config_name:
                             # URL编码config_name以支持中文
                             encoded_name = urllib.parse.quote(f"T:{config_name}")
