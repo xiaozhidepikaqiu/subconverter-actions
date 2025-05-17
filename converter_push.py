@@ -338,11 +338,11 @@ def main():
                 raise Exception(f"Missing {desc} ({var})")
             print(f"Found {var}")
 
-        # # 解码转换参数
-        # try:
-        #     subscribe_dict = json.loads(base64.b64decode(os.environ['CONVERT_PARAM']).decode("utf-8"))
-        # except Exception as e:
-        #     raise Exception(f"Failed to decode CONVERT_PARAM: {str(e)}")
+        # 解码转换参数
+        try:
+            subscribe_dict = json.loads(base64.b64decode(os.environ['CONVERT_PARAM']).decode("utf-8"))
+        except Exception as e:
+            raise Exception(f"Failed to decode CONVERT_PARAM: {str(e)}")
 
         # 转换订阅
         results = convert_subscribe(subscribe_dict)
