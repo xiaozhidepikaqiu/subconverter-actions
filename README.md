@@ -6,6 +6,11 @@
 
 ?target=clash&url=&insert=false&config=&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=false&scv=true&fdn=false&clash.doh=true&new_name=true
 
+:	%3A
+/	%2F
+?	%3F
+=	%3D
+
 ## 使用步骤
 
 1.  Fork 本仓库
