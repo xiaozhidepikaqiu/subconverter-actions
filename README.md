@@ -4,12 +4,11 @@
 
 这里采用的是[asdlokj1qpi23/subconverter](https://github.com/asdlokj1qpi23/subconverter)的fork版本，其支持Hysteria2协议。
 
-?target=clash&url=&insert=false&config=&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=false&scv=true&fdn=false&clash.doh=true&new_name=true
+?target=clash&url=&insert=false&config=&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true
 
-:	%3A
-/	%2F
-?	%3F
-=	%3D
+?target=clash&url&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true
+
+
 
 ## 使用步骤
 
