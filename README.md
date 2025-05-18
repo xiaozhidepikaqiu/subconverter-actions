@@ -2,13 +2,13 @@
 
 利用GithubActions：构建环境，运行订阅转换工具[subconverter](https://github.com/tindy2013/subconverter)；执行Python进行订阅转换，同时推送到cf kv。
 
-这里采用的是[asdlokj1qpi23/subconverter](https://github.com/asdlokj1qpi23/subconverter)的fork版本，其支持Hysteria2协议。
+这里采用的是[asdlokj1qpi233/subconverter](https://github.com/asdlokj1qpi233/subconverter)的fork版本，其支持Hysteria2协议。
 
 ?target=clash&url=&insert=false&config=&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true
 
-?target=clash&url&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true
+?target=clash&url=&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true
 
-{"T:": "?target=clash&url&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true", "T:": "?target=clash&url=&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true", "T:": "?target=clash&url=&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true"}
+{"T:": "?target=clash&url=&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true", "T:": "?target=clash&url=&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true", "T:": "?target=clash&url=&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true"}
 
 
 
