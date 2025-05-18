@@ -157,7 +157,7 @@ def get_original_headers(url, config_name=None):
                         # 使用config_name作为新的文件名（支持中文）config_name: CONVERT_PARAM中的键名
                         if config_name:
                             # URL编码config_name以支持中文
-                            encoded_name = urllib.parse.quote(f"T:{config_name}")
+                            encoded_name = urllib.parse.quote(f"{config_name}")  # (f"T:{config_name}")添加T:前缀
                             headers[header] = f"attachment; filename*=UTF-8''{encoded_name}"
                         else:
                             # 如果没有提供config_name，保持原有的content-disposition
