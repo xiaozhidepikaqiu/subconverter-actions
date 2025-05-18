@@ -17,6 +17,8 @@ class CloudflareKV:
             "Authorization": f"Bearer {account_api_token}",
             "Content-Type": "application/json"
         }
+        # 定义不会被清理的特殊键名
+        self.protected_keys = ["CONVERT_PARAM"]
     
     def list_keys(self):
         """获取所有键名"""
@@ -43,6 +45,11 @@ class CloudflareKV:
     def delete_key(self, key_name):
         """删除指定的键"""
         try:
+            # 检查是否是受保护的键
+            if key_name in self.protected_keys:
+                print(f"Skipping deletion of protected key: {key_name}")
+                return False
+                
             encoded_key = urllib.parse.quote(key_name)
             response = requests.delete(
                 f"{self.base_url}/values/{encoded_key}",
@@ -64,7 +71,11 @@ class CloudflareKV:
         existing_keys = self.list_keys()
         print(f"Existing keys in KV: {existing_keys}")
         
-        keys_to_delete = [key for key in existing_keys if key not in current_configs]
+        # 过滤掉受保护的键
+        keys_to_delete = [
+            key for key in existing_keys 
+            if key not in current_configs and key not in self.protected_keys
+        ]
         print(f"Keys that will be deleted: {keys_to_delete}")
         
         if not keys_to_delete:
@@ -274,7 +285,7 @@ def convert_subscribe(subscribe_dict):
     base_url = "http://localhost:25500/sub"
     results = {}
     
-    # 使用统一的 Clash 风格请求头，！！！这个逼请求头搞得我三天没办法转换成功，被cf检测python_request的请求头，转换失败
+    # 使用统一的 Clash 风格请求头
     headers = {
         'User-Agent': 'clash-verge/v1.0',
         'Accept': '*/*',
@@ -373,6 +384,13 @@ def main():
                 success_count += 1
             else:
                 print(f"Failed to update {filename} to CF KV")
+
+        # 将 CONVERT_PARAM 也推送到 KV 中
+        print("\n=== Storing CONVERT_PARAM to KV ===")
+        if cf_kv.update_config("CONVERT_PARAM", os.environ['CONVERT_PARAM'], {}):
+            print("Successfully stored CONVERT_PARAM to KV")
+        else:
+            print("Failed to store CONVERT_PARAM to KV")
 
         if success_count == 0:
             raise Exception("Error: the configuration update to kv failed")
