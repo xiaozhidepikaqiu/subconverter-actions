@@ -27,10 +27,15 @@ class CloudflareKV:
                 headers=self.headers,
                 timeout=30
             )
+            print(f"Listing keys response status: {response.status_code}")
             if response.ok:
                 data = response.json()
                 if data.get("success"):
-                    return [key["name"] for key in data.get("result", [])]
+                    keys = [key["name"] for key in data.get("result", [])]
+                    print(f"Found existing keys: {keys}")
+                    return keys
+                else:
+                    print(f"API error: {data}")
             return []
         except Exception as e:
             print(f"Error listing keys: {str(e)}")
@@ -56,13 +61,17 @@ class CloudflareKV:
 
     def clean_unused_configs(self, current_configs):
         """清理不再使用的配置"""
+        print(f"Current configs to keep: {current_configs}")
         existing_keys = self.list_keys()
+        print(f"Existing keys in KV: {existing_keys}")
+        
         keys_to_delete = [key for key in existing_keys if key not in current_configs]
+        print(f"Keys that will be deleted: {keys_to_delete}")
         
         if not keys_to_delete:
             print("No unused configurations to clean")
             return 0
-
+    
         print(f"\nCleaning {len(keys_to_delete)} unused configurations:")
         deleted_count = 0
         for key in keys_to_delete:
