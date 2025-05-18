@@ -12,13 +12,12 @@ class CloudflareKV:
         self.account_id = account_id
         self.kv_id = kv_id
         self.account_api_token = account_api_token
-        self.base_url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/storage/kv/namespaces/{kv_id}/values"
+        self.base_url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/storage/kv/namespaces/{kv_id}"
         self.headers = {
             "Authorization": f"Bearer {account_api_token}",
             "Content-Type": "application/json"
         }
-
-
+    
     def list_keys(self):
         """获取所有键名"""
         try:
@@ -40,7 +39,7 @@ class CloudflareKV:
         except Exception as e:
             print(f"Error listing keys: {str(e)}")
             return []
-
+    
     def delete_key(self, key_name):
         """删除指定的键"""
         try:
@@ -71,7 +70,7 @@ class CloudflareKV:
         if not keys_to_delete:
             print("No unused configurations to clean")
             return 0
-    
+
         print(f"\nCleaning {len(keys_to_delete)} unused configurations:")
         deleted_count = 0
         for key in keys_to_delete:
@@ -81,13 +80,12 @@ class CloudflareKV:
         print(f"Successfully cleaned {deleted_count} unused configurations")
         return deleted_count
 
-    
     def check_key_exists(self, key_name):
         """检查 KV 键是否存在"""
         try:
             encoded_key = urllib.parse.quote(key_name)
             response = requests.get(
-                f"{self.base_url}/{encoded_key}",
+                f"{self.base_url}/values/{encoded_key}",
                 headers=self.headers,
                 timeout=30
             )
@@ -95,7 +93,6 @@ class CloudflareKV:
         except:
             return False
 
-    
     def update_config(self, key_name, content, headers=None):
         """更新 CF KV 存储"""
         try:
@@ -104,6 +101,9 @@ class CloudflareKV:
             operation = "Updating" if is_update else "Creating"
             print(f"{operation} CF KV for {key_name}...")
             
+            # URL encode the key name for the API request
+            encoded_key = urllib.parse.quote(key_name)
+            
             # 构建存储数据
             kv_data = {
                 key_name: base64.b64encode(content.encode()).decode(),
@@ -111,13 +111,10 @@ class CloudflareKV:
                 "headers": headers or {}
             }
             
-            # URL encode the key name for the API request
-            encoded_key = urllib.parse.quote(key_name)
-            
             response = requests.put(
-                f"{self.base_url}/{encoded_key}",
+                f"{self.base_url}/values/{encoded_key}",
                 headers=self.headers,
-                data=json.dumps(kv_data, ensure_ascii=False),  # 确保中文正确编码
+                data=json.dumps(kv_data, ensure_ascii=False),
                 timeout=30
             )
             
