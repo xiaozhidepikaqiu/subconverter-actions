@@ -12,40 +12,30 @@
 
 2.  在你自己 Fork 的仓库进行设置`Settings - Actions - General - Allow all actions and reusable workflows`，别忘了`save`
 
-3.  然后`Settings - Secrets - Actions - New repository secret`，按下面例子新建几个`secrets`：
+3.  在Cloudflare`计算(Workers) - Workers 和 Pages`中创建一个`从 Hello World! 开始`的worker
 
-    | secrets Name     | Value                                                        |
-    | ---------------- | ------------------------------------------------------------ |
-    | `PERSONAL_TOKEN` | Github Personal Access Token（[在此创建](https://github.com/settings/tokens/new?scopes=gist&description=subconverter-action)） |
-    | `CF_ACCOUNT_ID`        | 要更新的Gist ID（**注意Secret**）                            |
-    | `CONVERT_PARAM`  | 配置参数                                                     |
+4.  然后`Settings - Secrets - Actions - New repository secret`，按下面例子新建几个`secrets`：
+
+    | secrets Name               | Value                                                        |
+    | ----------------           | ------------------------------------------------------------ |
+    | `PERSONAL_TOKEN`           | Github Personal Access Token（[在此创建](https://github.com/settings/tokens/new?scopes=gist&description=subconverter-action)） |
+    | `CF_ACCOUNT_ID`            | Cloudflare账户id                                             |
+    | `CF_ACCOUNT_API_TOKEN`     | Cloudflare账户api令牌                                        |
+    | `CF_KV_ID`                 | 与worker绑定的kv id                                           |
+    | `CONVERT_PARAM`            | 配置参数                                                     |
 
     1.   `PERSONAL_TOKEN`：个人访问令牌，没啥好说的。
+  
+    2.   `CF_ACCOUNT_ID`：登陆Cloudflare在账户主页复制账户ID
+      
+    3.   `CF_ACCOUNT_API_TOKEN`：先在`管理账户 - 账户API令牌 - 创建令牌`创建一个有Workers KV存储权限的令牌，创建后复制token
+  
+    4.   `CF_KV_ID`：在`存储和数据库 - KV`中创建kv，复制kv id
 
-    2.   `GIST_ID`：**需要自己新建**一个gist，填入id。`https://gist.github.com/{UserName}/{GistId}`
+    5.   `CONVERT_PARAM`：这个比较复杂，是下述json格式的base64编码。`key`是上传至gist的文件名，`value`值是通过在线订阅转换前端生成的后端参数。
 
-    3.   `CONVERT_PARAM`：这个比较复杂，是下述json格式的base64编码。`key`是上传至gist的文件名，`value`值是通过在线订阅转换前端生成的后端参数。
-
-        ```json
+        json
         {"sub1.yml": "?target=clash&insert=false&exclude=%E5%A5%97%E9%A4%90%E5%88%B0%E6%9C%9F%7C%E8%8A%82%E7%82%B9%E8%B6%85%E6%97%B6%7C%E6%9B%B4%E6%8D%A2%7C%E5%89%A9%E4%BD%99%E6%B5%81%E9%87%8F%7C%E5%88%B0%E6%9C%9F%E6%97%B6%E9%97%B4%7CTG%E7%BE%A4%7C%E5%AE%98%E7%BD%91&interval=259200&emoji=true&list=true&xudp=false&udp=true&tfo=false&expand=true&scv=true&fdn=false&new_name=true&url=SUBURL", "sub2.yml": "?target=clash&insert=false&exclude=%E5%A5%97%E9%A4%90%E5%88%B0%E6%9C%9F%7C%E8%8A%82%E7%82%B9%E8%B6%85%E6%97%B6%7C%E6%9B%B4%E6%8D%A2%7C%E5%89%A9%E4%BD%99%E6%B5%81%E9%87%8F%7C%E5%88%B0%E6%9C%9F%E6%97%B6%E9%97%B4%7CTG%E7%BE%A4%7C%E5%AE%98%E7%BD%91&interval=259200&emoji=true&list=true&xudp=false&udp=true&tfo=false&expand=true&scv=true&fdn=false&new_name=true&url=SUBURL"}
-        ```
+        
 
-        在线转换生成的订阅链接，sub之后的参数即为value（**包含?号**），也可以尝试使用`update.py`中的`test_param()`来生成。
-
-
-
-如果Actions没自动运行，自己随便改点啥push一下触发。
-
-
-
-在线订阅转换前端有：
-
--   [Subscription Converter (sub-web.netlify.app)](https://sub-web.netlify.app/)
--   [在线订阅转换工具 (v1.mk)](https://suburl.v1.mk/)
--   [品云订阅转换 (id9.cc)](https://id9.cc/)
-
-不介意隐私可以直接用上述在线订阅转换的后端。
-
-
-
-如果切换subconverter版本为官方版（目前还不支持Hysteria2 until 20240116），需要更改`UpdateGist.yml`中的docker，或注释掉docker用下载的subconverter文件，注意架构。
+        在线转换生成的订阅链接，sub之后的参数即为value（**包含?号**）
