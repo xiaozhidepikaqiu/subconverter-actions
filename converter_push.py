@@ -386,7 +386,7 @@ def main():
                 print(f"Failed to update {filename} to CF KV")
 
         
-        # 将 CONVERT_PARAM 也推送到 KV 中。  方便接着修改该介意去掉
+        # 将 CONVERT_PARAM 也推送到 KV 中。  方便接着修改该介意去掉（update_config执行的时候会encode一次）
         print("\n=== Storing CONVERT_PARAM to KV ===")
         if cf_kv.update_config("CONVERT_PARAM", os.environ['CONVERT_PARAM'], {}):
             print("Successfully stored CONVERT_PARAM to KV")
