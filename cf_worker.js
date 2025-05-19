@@ -345,7 +345,9 @@ export default {
       if (isWebRequest && path.length === 0) {
         // 获取所有配置列表
         const keys = await env.subinfo.list();
-        const configList = keys.keys.map(key => {
+        const configList = keys.keys
+          .filter(key => key.name !== 'CONVERT_PARAM') // 排除CONVERT_PARAM键
+          .map(key => {
           try {
             // 对配置名称进行解码，以正确显示中文
             return prefix + '/' + decodeURIComponent(key.name) + '?token=' + TOKEN;
