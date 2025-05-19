@@ -87,112 +87,140 @@ export default {
             <head>
               <title>Online Encoder/Decoder - by xiaozhidepikaqiu</title>
               <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
               <style>
                 body {
-                  font-family: Arial, sans-serif;
-                  margin: 20px;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                  margin: 0;
+                  padding: 10px;
                   background-color: #f0f2f5;
-                  display: flex;
-                  justify-content: center;
                   min-height: 100vh;
+                  -webkit-text-size-adjust: 100%;
                 }
                 .container {
                   max-width: 800px;
                   width: 100%;
-                  padding: 20px;
+                  padding: 15px;
                   background-color: white;
                   border-radius: 8px;
-                  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                  margin: 0 auto;
+                  box-sizing: border-box;
                 }
                 .header {
                   text-align: center;
-                  margin-bottom: 20px;
+                  margin-bottom: 15px;
                 }
                 .header h1 {
                   color: #1a73e8;
-                  margin-bottom: 10px;
+                  margin-bottom: 8px;
+                  font-size: 1.5rem;
                 }
                 .header p {
                   color: #5f6368;
-                  margin: 5px 0;
+                  margin: 4px 0;
+                  font-size: 0.9rem;
                 }
                 .input-output-container {
                   display: flex;
                   flex-direction: column;
                   align-items: center;
-                  gap: 20px;
-                  margin: 20px 0;
+                  gap: 15px;
+                  margin: 15px 0;
                 }
                 .text-area-wrapper {
-                  width: 90%;
+                  width: 100%;
                   text-align: center;
                 }
                 textarea {
                   width: 100%;
-                  height: 150px;
-                  padding: 10px;
+                  height: 120px;
+                  padding: 12px;
                   border: 1px solid #ddd;
-                  border-radius: 4px;
+                  border-radius: 6px;
                   resize: vertical;
                   font-family: monospace;
                   margin-top: 5px;
+                  font-size: 14px;
+                  -webkit-appearance: none;
+                  box-sizing: border-box;
                 }
-                #input {
+                #input, #output {
                   height: 50px;
                 }
-              
-                #output {
-                  height: 50px;
-                }
-              
                 #kv_convert_param {
-                  height: 400px;
+                  height: 500px;
                 }
                 .buttons {
-                  margin: 15px 0;
+                  margin: 12px 0;
                   display: flex;
-                  gap: 10px;
+                  gap: 8px;
                   flex-wrap: wrap;
                   justify-content: center;
+                  width: 100%;
                 }
                 button {
-                  padding: 8px 16px;
+                  padding: 10px 16px;
                   background-color: #1a73e8;
                   color: white;
                   border: none;
-                  border-radius: 4px;
+                  border-radius: 6px;
                   cursor: pointer;
                   transition: background-color 0.2s;
+                  font-size: 0.9rem;
+                  min-width: 120px;
+                  -webkit-tap-highlight-color: transparent;
                 }
-                button:hover {
+                button:hover, button:active {
                   background-color: #1557b0;
                 }
                 .clear {
                   background-color: #dc3545;
                 }
-                .clear:hover {
+                .clear:hover, .clear:active {
                   background-color: #bb2d3b;
                 }
                 .back-button {
                   background-color: #28a745;
-                  margin-bottom: 15px;
+                  margin-bottom: 12px;
+                  width: 100%;
                 }
-                .back-button:hover {
+                .back-button:hover, .back-button:active {
                   background-color: #218838;
                 }
-                @media (max-width: 600px) {
+                /* 移动端优化 */
+                @media (max-width: 480px) {
+                  body {
+                    padding: 5px;
+                  }
                   .container {
                     padding: 10px;
                   }
-                  .buttons {
-                    flex-direction: column;
+                  textarea {
+                    height: 100px;
+                    padding: 10px;
+                    font-size: 13px;
+                  }
+                  #input, #output {
+                    height: 120px;
+                  }
+                  #kv_convert_param {
+                    height: 1200px;
                   }
                   button {
-                    width: 100%;
+                    padding: 12px 8px;
+                    font-size: 0.85rem;
+                    min-width: 0;
+                    flex-grow: 1;
                   }
-                  .text-area-wrapper {
-                    width: 100%;
+                  .buttons {
+                    gap: 6px;
+                  }
+                }
+                /* 防止移动设备上的缩放 */
+                @media (pointer: coarse) {
+                  textarea {
+                    font-size: 16px !important;
                   }
                 }
               </style>
@@ -240,8 +268,29 @@ export default {
               </div>
 
               <script>
-                function refreshParam() {
-                  window.location.reload();
+                async function refreshParam() {
+                  try {
+                    const kvTextarea = document.getElementById('kv_convert_param');
+                    const currentUrl = new URL(window.location.href);
+                    
+                    // 添加随机参数避免缓存
+                    currentUrl.searchParams.set('_', Date.now());
+                    
+                    // 发起请求获取最新数据
+                    const response = await fetch(currentUrl);
+                    const html = await response.text();
+                    
+                    // 使用 DOMParser 解析 HTML，提取最新 KV 数据
+                    const parser = new DOMParser();
+                    const newDoc = parser.parseFromString(html, 'text/html');
+                    const newValue = newDoc.getElementById('kv_convert_param').value;
+                    
+                    // 只更新文本框内容，不刷新整个页面
+                    kvTextarea.value = newValue;
+                  } catch (error) {
+                    console.error('刷新失败:', error);
+                    alert('刷新失败，请重试');
+                  }
                 }
                 
                 function copyOutput() {
@@ -310,7 +359,7 @@ export default {
                 }
 
                 function base64Encode() {
-                  const temp = document.getElementById('temp').value;
+                  const kv_convert_param = document.getElementById('kv_convert_param').value;
                   try {
                     document.getElementById('kv_convert_param').value = btoa(unescape(encodeURIComponent(kv_convert_param)));
                   } catch(e) {
@@ -355,7 +404,7 @@ export default {
           } catch {
             return prefix + '/' + key.name + '?token=' + TOKEN;
           }
-        }).join('<br>');
+        }).join('<br><br>');
         
         return new Response(`
           <!DOCTYPE html>
@@ -363,17 +412,18 @@ export default {
             <head>
               <title>subconverterONactions_pushTOkv</title>
               <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
               <style>
                 body {
-                  font-family: Arial, sans-serif;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
                   display: flex;
                   justify-content: center;
                   align-items: center;
                   min-height: 100vh;
                   margin: 0;
                   background-color: #f0f2f5;
-                  padding: 20px;
+                  padding: 15px;
+                  -webkit-text-size-adjust: 100%;
                 }
                 .container {
                   text-align: center;
@@ -381,34 +431,96 @@ export default {
                   background-color: white;
                   border-radius: 8px;
                   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                  max-width: 1200px;
                   width: 100%;
+                  max-width: 1200px;
+                  box-sizing: border-box;
+                  margin: 15px;
                 }
                 h1 {
                   color: #1a73e8;
                   margin-bottom: 10px;
+                  font-size: 1.8rem;
+                  line-height: 1.3;
                 }
                 p {
                   color: #5f6368;
                   margin: 10px 0;
+                  font-size: 1rem;
+                  line-height: 1.5;
                 }
                 .config-list {
                   margin-top: 20px;
-                  padding: 10px;
+                  padding: 15px;
                   background-color: #f8f9fa;
-                  border-radius: 4px;
+                  border-radius: 6px;
                   word-wrap: break-word;
+                  text-align: left;
+                  overflow-wrap: break-word;
+                }
+                .config-list p {
+                  margin: 0;
+                  padding: 8px 0;
+                  text-align: center;
                 }
                 .links {
                   margin-top: 20px;
+                  display: flex;
+                  flex-wrap: wrap;
+                  justify-content: center;
+                  gap: 12px;
                 }
                 .links a {
                   color: #1a73e8;
                   text-decoration: none;
-                  margin: 0 10px;
+                  padding: 8px 16px;
+                  border-radius: 6px;
+                  background-color: #f0f7ff;
+                  transition: all 0.2s;
+                  display: inline-block;
+                  white-space: nowrap;
                 }
                 .links a:hover {
-                  text-decoration: underline;
+                  background-color: #e0efff;
+                  text-decoration: none;
+                }
+                /* 移动端优化 */
+                @media (max-width: 480px) {
+                  body {
+                    padding: 10px;
+                    align-items: flex-start;
+                    min-height: calc(100vh - 20px);
+                  }
+                  .container {
+                    padding: 15px;
+                    margin: 0;
+                  }
+                  h1 {
+                    font-size: 1.5rem;
+                    margin-bottom: 8px;
+                  }
+                  p {
+                    font-size: 0.95rem;
+                  }
+                  .config-list {
+                    padding: 12px;
+                  }
+                  .links {
+                    gap: 8px;
+                  }
+                  .links a {
+                    padding: 8px 12px;
+                    font-size: 0.9rem;
+                    white-space: normal;
+                  }
+                }
+                /* 防止移动设备上的缩放问题 */
+                @media (pointer: coarse) {
+                  body {
+                    font-size: 16px;
+                  }
+                  .links a {
+                    padding: 10px 16px;
+                  }
                 }
               </style>
             </head>
@@ -551,4 +663,5 @@ export default {
       });
     }
   }
+};
 };
