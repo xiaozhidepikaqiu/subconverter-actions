@@ -14,7 +14,7 @@
 
 3.  在Cloudflare`计算(Workers) - Workers 和 Pages`中创建一个`从 Hello World! 开始`的worker。完成后进行`代码编辑`把原内容用cf_worker.js的文件内容替换掉
 
-4.  为worker设置`变量和机密`作为访问token**(注意设置的值名称要和cf_worker.js中的对应)**
+4.  为worker设置`变量和机密`作为访问token **(注意设置的值名称要和cf_worker.js中的对应)**
 
 5.  然后`Settings - Secrets - Actions - New repository secret`，按下面例子新建几个`secrets`：
 
@@ -32,7 +32,7 @@
       
     3.   `CF_ACCOUNT_API_TOKEN`：先在`管理账户 - 账户API令牌 - 创建令牌`创建一个有Workers KV存储权限的令牌，创建后复制token
   
-    4.   `CF_KV_ID`：在`存储和数据库 - KV`中创建kv，后到`计算(Workers) - Workers 和 Pages`中为worker添加kv绑定**(注意设置的值名称要和cf_worker.js中的对应)**。复制kv id作为值
+    4.   `CF_KV_ID`：在`存储和数据库 - KV`中创建kv，后到`计算(Workers) - Workers 和 Pages`中为worker添加kv绑定 **(注意设置的值名称要和cf_worker.js中的对应)**。复制kv id作为值
 
     5.   `CONVERT_PARAM`：这个比较复杂，是下述json格式的base64编码。`key`是推送至kv的键名，`value`值是通过在线订阅转换前端生成的后端参数。
 
@@ -41,4 +41,4 @@
     
         在线转换生成的订阅链接，sub之后的参数即为value（**包含?号**）
 
-   7.   访问cf给的地址加上后缀  ?token=123456789  （比如subconverterONactions_pushTOkv_token=123456789）**(注意设置的值名称要和cf_worker.js中的对应)**即可使用
+   7.   访问cf给的地址加上后缀  ?token=123456789  （比如subconverterONactions_pushTOkv_token=123456789） **(注意设置的值名称要和cf_worker.js中的对应)** 即可使用
