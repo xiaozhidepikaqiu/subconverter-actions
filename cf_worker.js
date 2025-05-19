@@ -1,4 +1,5 @@
 // 在cf中创建worker部署该js；绑定py推送的目标kv，我的变量名是subinfo；为worker设置一个“变量与机密”值就是token了，访问的时候在地址中加上后缀  ?token=123456789  （比如subconverterONactions_pushTOkv_token=123456789），我的变量名是subconverterONactions_pushTOkv_token
+// 变量名自行查找替换
 
 
 export default {
