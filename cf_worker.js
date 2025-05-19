@@ -146,7 +146,7 @@ export default {
                   height: 50px;
                 }
               
-                #temp {
+                #kv_convert_param {
                   height: 400px;
                 }
                 .buttons {
@@ -228,12 +228,12 @@ export default {
                   </div>
 
                   <div class="text-area-wrapper">
-                    <label for="temp">KV Storage Contents:</label>
-                    <textarea id="temp">${kvParam}</textarea>
+                    <label for="kv_convert_param">KV CONVERT_PARAM:</label>
+                    <textarea id="kv_convert_param">${kvParam}</textarea>
                   </div>
                   <div class="buttons">
-                    <button onclick="base64EncodeTemp()">Base64 Encode Temp</button>
-                    <button onclick="base64DecodeTemp()">Base64 Decode Temp</button>
+                    <button onclick="base64Encode()">Base64 Encode</button>
+                    <button onclick="base64Decode()">Base64 Decode</button>
                     <button onclick="refreshParam()">Refresh Param</button>
                   </div>
                 </div>
@@ -309,21 +309,21 @@ export default {
                   }
                 }
 
-                function base64EncodeTemp() {
+                function base64Encode() {
                   const temp = document.getElementById('temp').value;
                   try {
-                    document.getElementById('temp').value = btoa(unescape(encodeURIComponent(temp)));
+                    document.getElementById('kv_convert_param').value = btoa(unescape(encodeURIComponent(kv_convert_param)));
                   } catch(e) {
-                    document.getElementById('temp').value = 'Error: Invalid input for Base64 encoding';
+                    document.getElementById('kv_convert_param').value = 'Error: Invalid input for Base64 encoding';
                   }
                 }
           
-                function base64DecodeTemp() {
-                  const temp = document.getElementById('temp').value;
+                function base64Decode() {
+                  const kv_convert_param = document.getElementById('kv_convert_param').value;
                   try {
-                    document.getElementById('temp').value = decodeURIComponent(escape(atob(temp)));
+                    document.getElementById('kv_convert_param').value = decodeURIComponent(escape(atob(kv_convert_param)));
                   } catch(e) {
-                    document.getElementById('temp').value = 'Error: Invalid Base64 encoding';
+                    document.getElementById('kv_convert_param').value = 'Error: Invalid Base64 encoding';
                   }
                 }
 
@@ -419,7 +419,7 @@ export default {
                 <p>Last Updated: ${new Date().toUTCString()}</p>
                 <p>By: xiaozhidepikaqiu</p>
                 <div class="config-list">
-                  <p>Available Configurations:</p>
+                  <p>Available Configurations URL:</p>
                   <p>${configList || 'No configurations available'}</p>
                 </div>
                 <div class="links">
