@@ -6,12 +6,6 @@
 
 ?target=clash&url=&insert=false&config=&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true
 
-?target=clash&url=&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true
-
-{"T:": "?target=clash&url=&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true", "T:": "?target=clash&url=&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true", "T:": "?target=clash&url=&insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhidepikaqiu%2FMySubconverterRemoteConfig%2Frefs%2Fheads%2Fmain%2FMyRemoteConfig.ini&tls13=true&emoji=true&list=false&xudp=true&udp=true&tfo=true&expand=true&scv=true&fdn=false&clash.doh=true&new_name=true"}
-
-
-
 ## 使用步骤
 
 1.  Fork 本仓库
@@ -23,7 +17,7 @@
     | secrets Name     | Value                                                        |
     | ---------------- | ------------------------------------------------------------ |
     | `PERSONAL_TOKEN` | Github Personal Access Token（[在此创建](https://github.com/settings/tokens/new?scopes=gist&description=subconverter-action)） |
-    | `GIST_ID`        | 要更新的Gist ID（**注意Secret**）                            |
+    | `CF_ACCOUNT_ID`        | 要更新的Gist ID（**注意Secret**）                            |
     | `CONVERT_PARAM`  | 配置参数                                                     |
 
     1.   `PERSONAL_TOKEN`：个人访问令牌，没啥好说的。
